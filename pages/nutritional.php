@@ -1,7 +1,5 @@
 <?php
-// ============================================================
 // pages/nutritional.php
-// ============================================================
 if (session_status() === PHP_SESSION_NONE) session_start();
 require_once __DIR__ . '/../classes/Auth.php';
 require_once __DIR__ . '/../classes/NutritionalRecord.php';
@@ -25,7 +23,7 @@ $benQuery = $schoolId
 $schoolId ? $benQuery->execute([$schoolId]) : $benQuery->execute();
 $beneficiaries = $benQuery->fetchAll();
 
-// ── CRUD ─────────────────────────────────────────────────────
+// CRUD
 $action = $_POST['action'] ?? '';
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if ($action === 'add') {
@@ -140,7 +138,7 @@ require_once __DIR__ . '/../includes/header.php';
 </div>
 <p class="text-muted mt-2" style="font-size:.78rem;"><?= count($records) ?> record<?= count($records) !== 1 ? 's' : '' ?></p>
 
-<!-- ── Add Modal ── -->
+<!-- Add Modal -->
 <div class="modal fade" id="addNutModal" tabindex="-1">
   <div class="modal-dialog modal-dialog-centered">
     <div class="modal-content">
@@ -150,9 +148,7 @@ require_once __DIR__ . '/../includes/header.php';
       </div>
       <form method="post" action="nutritional.php">
         <input type="hidden" name="action" value="add">
-        <div class="modal-body">
-          <?= nutFormBody($beneficiaries) ?>
-        </div>
+        <div class="modal-body"></div>
         <div class="modal-footer">
           <button type="button" class="btn-outline-custom" data-bs-dismiss="modal">Cancel</button>
           <button type="submit" id="btn-add-nut" class="btn-primary-custom">
@@ -164,7 +160,7 @@ require_once __DIR__ . '/../includes/header.php';
   </div>
 </div>
 
-<!-- ── Edit Modal ── -->
+<!-- Edit Modal -->
 <div class="modal fade" id="editNutModal" tabindex="-1">
   <div class="modal-dialog modal-dialog-centered">
     <div class="modal-content">
@@ -187,7 +183,7 @@ require_once __DIR__ . '/../includes/header.php';
   </div>
 </div>
 
-<!-- ── Delete Modal ── -->
+<!-- Delete Modal -->
 <div class="modal fade" id="deleteNutModal" tabindex="-1">
   <div class="modal-dialog modal-dialog-centered" style="max-width:420px;">
     <div class="modal-content">
@@ -214,55 +210,10 @@ require_once __DIR__ . '/../includes/header.php';
 </div>
 
 <script>
-const bens = <?= json_encode($beneficiaries) ?>;
-
-function nutFields(d = {}) {
-  const benOpts = bens.map(b =>
-    `<option value="${b.id}" ${d.beneficiary_id==b.id?'selected':''}>${b.full_name} (${b.lrn})</option>`
-  ).join('');
-  return `
-    <div class="mb-3">
-      <label class="form-label">Beneficiary</label>
-      <select name="beneficiary_id" class="form-select" required>${benOpts}</select>
-    </div>
-    <div class="mb-3">
-      <label class="form-label">Record Date</label>
-      <input type="date" name="record_date" class="form-control" value="${d.record_date||''}" required>
-    </div>
-    <div class="row g-3">
-      <div class="col-6">
-        <label class="form-label">Weight (kg)</label>
-        <input type="number" name="weight_kg" step="0.01" min="5" max="200"
-               class="form-control" value="${d.weight_kg||''}" required>
-      </div>
-      <div class="col-6">
-        <label class="form-label">Height (cm)</label>
-        <input type="number" name="height_cm" step="0.01" min="50" max="250"
-               class="form-control" value="${d.height_cm||''}" required>
-      </div>
-    </div>
-  `;
-}
-
-function openEditNut(row) {
-  document.getElementById('editNutId').value = row.id;
-  document.getElementById('editNutBody').innerHTML = nutFields(row);
-  new bootstrap.Modal(document.getElementById('editNutModal')).show();
-}
-
-function openDeleteNut(id, name) {
-  document.getElementById('deleteNutId').value = id;
-  document.getElementById('deleteNutName').textContent = name;
-  new bootstrap.Modal(document.getElementById('deleteNutModal')).show();
-}
-
-document.getElementById('addNutModal').addEventListener('show.bs.modal', function() {
-  const b = this.querySelector('.modal-body');
-  if (!b.querySelector('select')) b.innerHTML = nutFields({});
-});
+window.pageData = {
+  beneficiaries: <?= json_encode($beneficiaries) ?>
+};
 </script>
+<script src="../assets/js/nutritional.js"></script>
 
-<?php
-function nutFormBody(array $bens): string { return ''; }
-require_once __DIR__ . '/../includes/footer.php';
-?>
+<?php require_once __DIR__ . '/../includes/footer.php'; ?>

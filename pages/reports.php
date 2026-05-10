@@ -1,7 +1,5 @@
 <?php
-// ============================================================
 // pages/reports.php
-// ============================================================
 if (session_status() === PHP_SESSION_NONE) session_start();
 require_once __DIR__ . '/../classes/Auth.php';
 require_once __DIR__ . '/../config/db.php';
@@ -128,7 +126,7 @@ require_once __DIR__ . '/../includes/header.php';
   </form>
 </div>
 
-<!-- ── Rendered Report ─────────────────────────────────────── -->
+<!-- Rendered Report-->
 <?php if ($type && !empty($reportData)): ?>
 <div style="margin-top:1.5rem;">
   <div class="d-flex align-items-center justify-content-between mb-3 no-print">
@@ -273,15 +271,6 @@ require_once __DIR__ . '/../includes/header.php';
 </div>
 <?php endif; ?>
 
-<script>
-function toggleDates(val) {
-  const show = val !== 'inventory';
-  ['dateFromWrap','dateToWrap'].forEach(id => {
-    const el = document.getElementById(id);
-    if (el) el.style.display = show ? '' : 'none';
-  });
-}
-toggleDates(document.getElementById('reportType')?.value || '');
-</script>
+<script src="../assets/js/reports.js"></script>
 
 <?php require_once __DIR__ . '/../includes/footer.php'; ?>

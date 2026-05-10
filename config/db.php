@@ -1,7 +1,5 @@
 <?php
-// ============================================================
-// config/db.php — PDO connection singleton
-// ============================================================
+// config/db.php
 
 define('DB_HOST', 'localhost');
 define('DB_NAME', 'sfpms');

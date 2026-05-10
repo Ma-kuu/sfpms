@@ -1,7 +1,5 @@
 <?php
-// ============================================================
 // pages/inventory.php
-// ============================================================
 if (session_status() === PHP_SESSION_NONE) session_start();
 require_once __DIR__ . '/../classes/Auth.php';
 require_once __DIR__ . '/../classes/Inventory.php';
@@ -128,7 +126,7 @@ require_once __DIR__ . '/../includes/header.php';
 </div>
 <p class="text-muted mt-2" style="font-size:.78rem;"><?= count($items) ?> item<?= count($items) !== 1 ? 's' : '' ?></p>
 
-<!-- ── Add Modal ── -->
+<!-- Add Modal -->
 <div class="modal fade" id="addInvModal" tabindex="-1">
   <div class="modal-dialog modal-dialog-centered">
     <div class="modal-content">
@@ -150,7 +148,7 @@ require_once __DIR__ . '/../includes/header.php';
   </div>
 </div>
 
-<!-- ── Edit Modal ── -->
+<!-- Edit Modal -->
 <div class="modal fade" id="editInvModal" tabindex="-1">
   <div class="modal-dialog modal-dialog-centered">
     <div class="modal-content">
@@ -173,7 +171,7 @@ require_once __DIR__ . '/../includes/header.php';
   </div>
 </div>
 
-<!-- ── Delete Modal ── -->
+<!-- Delete Modal -->
 <div class="modal fade" id="deleteInvModal" tabindex="-1">
   <div class="modal-dialog modal-dialog-centered" style="max-width:420px;">
     <div class="modal-content">
@@ -200,59 +198,12 @@ require_once __DIR__ . '/../includes/header.php';
 </div>
 
 <script>
-const invSchools = <?= json_encode($schools) ?>;
-const invSA      = <?= $isSA ? 'true' : 'false' ?>;
-const invSchId   = <?= $schoolId ?? 'null' ?>;
-
-function invFields(d = {}) {
-  const schOpts = invSchools.map(s =>
-    `<option value="${s.id}" ${d.school_id==s.id?'selected':''}>${s.name}</option>`
-  ).join('');
-  return `
-    ${invSA ? `<div class="mb-3">
-      <label class="form-label">School</label>
-      <select name="school_id" class="form-select" required>${schOpts}</select>
-    </div>` : `<input type="hidden" name="school_id" value="${invSchId}">`}
-    <div class="mb-3">
-      <label class="form-label">Item Name</label>
-      <input type="text" name="item_name" class="form-control" value="${d.item_name||''}" required>
-    </div>
-    <div class="row g-3 mb-3">
-      <div class="col-6">
-        <label class="form-label">Quantity</label>
-        <input type="number" name="quantity" step="0.01" min="0" class="form-control"
-               value="${d.quantity||0}" required>
-      </div>
-      <div class="col-6">
-        <label class="form-label">Unit</label>
-        <input type="text" name="unit" class="form-control" value="${d.unit||'pcs'}" required>
-      </div>
-    </div>
-    <div class="mb-1">
-      <label class="form-label">Low Stock Threshold</label>
-      <input type="number" name="low_stock_threshold" step="0.01" min="0"
-             class="form-control" value="${d.low_stock_threshold||10}">
-      <div class="form-text">Alert shown when quantity falls below this value.</div>
-    </div>
-  `;
-}
-
-function openEditInv(row) {
-  document.getElementById('editInvId').value = row.id;
-  document.getElementById('editInvBody').innerHTML = invFields(row);
-  new bootstrap.Modal(document.getElementById('editInvModal')).show();
-}
-
-function openDeleteInv(id, name) {
-  document.getElementById('deleteInvId').value = id;
-  document.getElementById('deleteInvName').textContent = name;
-  new bootstrap.Modal(document.getElementById('deleteInvModal')).show();
-}
-
-document.getElementById('addInvModal').addEventListener('show.bs.modal', function() {
-  const b = document.getElementById('addInvBody');
-  if (!b.querySelector('input[name="item_name"]')) b.innerHTML = invFields({});
-});
+window.pageData = {
+  schools:    <?= json_encode($schools) ?>,
+  isSA:       <?= $isSA ? 'true' : 'false' ?>,
+  mySchoolId: <?= $schoolId ?? 'null' ?>
+};
 </script>
+<script src="../assets/js/inventory.js"></script>
 
 <?php require_once __DIR__ . '/../includes/footer.php'; ?>

@@ -1,7 +1,5 @@
 <?php
-// ============================================================
 // pages/dashboard.php
-// ============================================================
 if (session_status() === PHP_SESSION_NONE) session_start();
 require_once __DIR__ . '/../classes/Auth.php';
 require_once __DIR__ . '/../classes/Beneficiary.php';
@@ -80,26 +78,6 @@ require_once __DIR__ . '/../includes/header.php';
 ?>
 
 <!-- KPI Strip -->
-<style>
-  .kpi-strip {
-    display: flex; align-items: center;
-    background: #fff;
-    padding: 1rem 0;
-    margin-bottom: 1.5rem;
-  }
-  .kpi-stat { flex: 1; padding: .2rem .75rem; }
-  .kpi-stat-label {
-    font-size: .7rem; color: #9ca3af; font-weight: 600;
-    text-transform: uppercase; letter-spacing: .05em;
-    margin-bottom: .3rem;
-  }
-  .kpi-stat-val {
-    font-size: 2.5rem; font-weight: 800;
-    color: #1B1B1B; line-height: 1; letter-spacing: -.02em;
-  }
-  .kpi-divider { width: 1px; height: 38px; background: #eee; flex-shrink: 0; }
-</style>
-
 <div class="kpi-strip">
   <div class="kpi-stat">
     <div class="kpi-stat-label">Total Beneficiaries</div>
@@ -214,111 +192,16 @@ require_once __DIR__ . '/../includes/header.php';
 
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
 <script>
-(function(){
-  const allLabels  = <?= json_encode($chartLabels) ?>;
-  const allData    = <?= json_encode(array_map('intval', $chartValues)) ?>;
-  const PAGE_SIZE  = 10;
-  let   page       = 0;
-  const totalPages = Math.ceil(allLabels.length / PAGE_SIZE) || 1;
-  const colors     = ['#2D6A4F','#40916C','#52B788','#74C69D','#95D5B2',
-                      '#b7e4c7','#3a7d5f','#4a9070','#5aa881','#6dbf92'];
-
-  const chart = new Chart(document.getElementById('beneficiaryChart'), {
-    type: 'bar',
-    data: { labels: [], datasets: [{ label: 'Beneficiaries', data: [],
-      backgroundColor: colors, borderRadius: 6, borderSkipped: false }] },
-    options: {
-      responsive: true, maintainAspectRatio: false,
-      plugins: {
-        legend: { display: false },
-        tooltip: { callbacks: { label: ctx => ' ' + ctx.parsed.y + ' pupils' } }
-      },
-      scales: {
-        y: { beginAtZero: true, ticks: { stepSize: 2, font: { size: 11 } }, grid: { color: '#f3f4f6' } },
-        x: { ticks: { font: { size: 11 }, maxRotation: 30 }, grid: { display: false } }
-      }
-    }
-  });
-
-  function render() {
-    const s = page * PAGE_SIZE;
-    chart.data.labels = allLabels.slice(s, s + PAGE_SIZE);
-    chart.data.datasets[0].data = allData.slice(s, s + PAGE_SIZE);
-    chart.update();
-    document.getElementById('chart-page-label').textContent = (page+1) + ' / ' + totalPages;
-    document.getElementById('chart-prev').disabled = page === 0;
-    document.getElementById('chart-next').disabled = page >= totalPages - 1;
-  }
-
-  document.getElementById('chart-prev').addEventListener('click', () => { page--; render(); });
-  document.getElementById('chart-next').addEventListener('click', () => { page++; render(); });
-  render();
-})();
-
-// Chart 2 — BMI Doughnut
-(function(){
-  const labels = <?= json_encode($bmiLabels) ?>;
-  const data   = <?= json_encode($bmiValues) ?>;
-  const colors = <?= json_encode($bmiColors) ?>;
-  new Chart(document.getElementById('bmiChart'), {
-    type: 'doughnut',
-    data: {
-      labels,
-      datasets: [{ data, backgroundColor: colors, borderWidth: 2, borderColor: '#fff', hoverOffset: 6 }]
-    },
-    options: {
-      responsive: true,
-      maintainAspectRatio: false,
-      cutout: '65%',
-      plugins: {
-        legend: {
-          position: 'right',
-          labels: { font: { size: 11 }, padding: 12, usePointStyle: true }
-        },
-        tooltip: { callbacks: { label: ctx => ` ${ctx.label}: ${ctx.parsed} pupils` } }
-      }
-    }
-  });
-})();
-
-// Chart 3 — Attendance Trend Line
-(function(){
-  const labels = <?= json_encode($attLabels) ?>;
-  const data   = <?= json_encode($attValues) ?>;
-  new Chart(document.getElementById('attendanceChart'), {
-    type: 'line',
-    data: {
-      labels,
-      datasets: [{
-        label: 'Attendance %',
-        data,
-        borderColor: '#2D6A4F',
-        backgroundColor: 'rgba(45,106,79,.08)',
-        borderWidth: 2,
-        pointBackgroundColor: '#2D6A4F',
-        pointRadius: 4,
-        fill: true,
-        tension: 0.35,
-      }]
-    },
-    options: {
-      responsive: true,
-      maintainAspectRatio: false,
-      plugins: {
-        legend: { display: false },
-        tooltip: { callbacks: { label: ctx => ` ${ctx.parsed.y}%` } }
-      },
-      scales: {
-        y: {
-          beginAtZero: true, max: 100,
-          ticks: { callback: v => v + '%', font: { size: 11 } },
-          grid: { color: '#f3f4f6' }
-        },
-        x: { ticks: { font: { size: 11 } }, grid: { display: false } }
-      }
-    }
-  });
-})();
+window.pageData = {
+  chartLabels: <?= json_encode($chartLabels) ?>,
+  chartValues: <?= json_encode(array_map('intval', $chartValues)) ?>,
+  bmiLabels:   <?= json_encode($bmiLabels) ?>,
+  bmiValues:   <?= json_encode($bmiValues) ?>,
+  bmiColors:   <?= json_encode($bmiColors) ?>,
+  attLabels:   <?= json_encode($attLabels) ?>,
+  attValues:   <?= json_encode($attValues) ?>
+};
 </script>
+<script src="../assets/js/dashboard-charts.js"></script>
 
 <?php require_once __DIR__ . '/../includes/footer.php'; ?>

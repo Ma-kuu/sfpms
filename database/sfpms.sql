@@ -184,9 +184,9 @@ INSERT INTO schools (id, name, address) VALUES
 -- USERS (password: password)
 -- ============================================================
 INSERT INTO users (name, email, password, role, school_id) VALUES
-('Super Administrator',  'admin@sfpms.edu.ph', '$2y$12$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'super_admin',   NULL),
-('Maria Santos',         'maria@sfpms.edu.ph', '$2y$12$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'school_admin',  1),
-('Juan dela Cruz',       'juan@sfpms.edu.ph',  '$2y$12$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'teacher',       2);
+('Super Administrator',  'admin@sfpms.edu.ph', 'password', 'super_admin',   NULL),
+('Maria Santos',         'maria@sfpms.edu.ph', 'password', 'school_admin',  1),
+('Juan dela Cruz',       'juan@sfpms.edu.ph',  'password', 'teacher',       2);
 
 -- ============================================================
 -- BENEFICIARIES (School 1: Panabo Central ES, School 2: New Visayas CES)

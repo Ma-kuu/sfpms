@@ -1,7 +1,5 @@
 <?php
-// ============================================================
 // includes/pagination.php  — reusable pagination helper
-// ============================================================
 
 /**
  * Returns ['page', 'perPage', 'offset', 'totalPages', 'total']

@@ -1,7 +1,5 @@
 <?php
-// ============================================================
 // pages/feeding_log.php
-// ============================================================
 if (session_status() === PHP_SESSION_NONE) session_start();
 require_once __DIR__ . '/../classes/Auth.php';
 require_once __DIR__ . '/../classes/FeedingLog.php';
@@ -16,7 +14,7 @@ $schools  = $pdo->query('SELECT id, name FROM schools ORDER BY name')->fetchAll(
 
 $action = $_POST['action'] ?? $_GET['action'] ?? '';
 
-// ── Attendance form submission ────────────────────────────────
+// Attendance form submission
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && $action === 'save_attendance') {
     $sessionId  = (int)$_POST['session_id'];
     $presentIds = array_map('intval', $_POST['present'] ?? []);
@@ -25,7 +23,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $action === 'save_attendance') {
     exit;
 }
 
-// ── Session CRUD ──────────────────────────────────────────────
+// Session CRUD
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if ($action === 'add') {
         FeedingLog::createSession([
@@ -49,7 +47,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     exit;
 }
 
-// ── Attendance view ───────────────────────────────────────────
+// Attendance view
 $attendanceView = null;
 $attendance     = [];
 if (isset($_GET['session_id'])) {
@@ -70,7 +68,7 @@ require_once __DIR__ . '/../includes/header.php';
 </div>
 <?php endif; ?>
 
-<!-- ── Attendance Checklist View ─────────────────────────────── -->
+<!-- Attendance Checklist View-->
 <?php if ($attendanceView): ?>
 <div style="margin-bottom:1.25rem;">
   <a href="feeding_log.php" class="btn-outline-custom" style="margin-bottom:1rem;display:inline-flex;">
@@ -121,7 +119,7 @@ require_once __DIR__ . '/../includes/header.php';
 </div>
 
 <?php else: ?>
-<!-- ── Sessions Table ─────────────────────────────────────────── -->
+<!-- Sessions Table-->
 <div class="table-wrapper">
   <div class="table-header">
     <div style="font-weight:600;font-size:.95rem;">All Feeding Sessions</div>
@@ -191,7 +189,7 @@ require_once __DIR__ . '/../includes/header.php';
 </div>
 <?php endif; ?>
 
-<!-- ── Add Session Modal ── -->
+<!-- Add Session Modal -->
 <div class="modal fade" id="addSessionModal" tabindex="-1">
   <div class="modal-dialog modal-dialog-centered">
     <div class="modal-content">
@@ -201,9 +199,7 @@ require_once __DIR__ . '/../includes/header.php';
       </div>
       <form method="post" action="feeding_log.php">
         <input type="hidden" name="action" value="add">
-        <div class="modal-body">
-          <?= sessionFormFields($schools, null, $isSA, $schoolId) ?>
-        </div>
+        <div class="modal-body"></div>
         <div class="modal-footer">
           <button type="button" class="btn-outline-custom" data-bs-dismiss="modal">Cancel</button>
           <button type="submit" id="btn-add-session" class="btn-primary-custom">
@@ -215,7 +211,7 @@ require_once __DIR__ . '/../includes/header.php';
   </div>
 </div>
 
-<!-- ── Edit Session Modal ── -->
+<!-- Edit Session Modal -->
 <div class="modal fade" id="editSessionModal" tabindex="-1">
   <div class="modal-dialog modal-dialog-centered">
     <div class="modal-content">
@@ -238,7 +234,7 @@ require_once __DIR__ . '/../includes/header.php';
   </div>
 </div>
 
-<!-- ── Delete Session Modal ── -->
+<!-- Delete Session Modal -->
 <div class="modal fade" id="deleteSesModal" tabindex="-1">
   <div class="modal-dialog modal-dialog-centered" style="max-width:420px;">
     <div class="modal-content">
@@ -265,59 +261,12 @@ require_once __DIR__ . '/../includes/header.php';
 </div>
 
 <script>
-const sesSchools = <?= json_encode($schools) ?>;
-const sesSA      = <?= $isSA ? 'true' : 'false' ?>;
-const sesSchId   = <?= $schoolId ?? 'null' ?>;
-
-function sessionFields(d={}) {
-  const schOpts = sesSA
-    ? sesSchools.map(s=>`<option value="${s.id}" ${d.school_id==s.id?'selected':''}>${s.name}</option>`).join('')
-    : `<option value="${sesSchId}" selected></option>`;
-  return `
-    ${sesSA ? `<div class="mb-3">
-      <label class="form-label">School</label>
-      <select name="school_id" class="form-select" required>${schOpts}</select>
-    </div>` : `<input type="hidden" name="school_id" value="${sesSchId}">`}
-    <div class="mb-3">
-      <label class="form-label">Session Date</label>
-      <input type="date" name="session_date" class="form-control" value="${d.session_date||''}" required>
-    </div>
-    <div class="mb-3">
-      <label class="form-label">Meal Type</label>
-      <select name="meal_type" class="form-select">
-        ${['Breakfast','Lunch','Snack'].map(m=>`<option value="${m}" ${d.meal_type===m?'selected':''}>${m}</option>`).join('')}
-      </select>
-    </div>
-    <div class="mb-1">
-      <label class="form-label">Remarks (optional)</label>
-      <textarea name="remarks" class="form-control" rows="2">${d.remarks||''}</textarea>
-    </div>
-  `;
-}
-
-function openEditSession(row) {
-  document.getElementById('editSesId').value = row.id;
-  document.getElementById('editSesBody').innerHTML = sessionFields(row);
-  new bootstrap.Modal(document.getElementById('editSessionModal')).show();
-}
-
-function openDeleteSession(id, label) {
-  document.getElementById('deleteSesId').value = id;
-  document.getElementById('deleteSesDate').textContent = label;
-  new bootstrap.Modal(document.getElementById('deleteSesModal')).show();
-}
-
-document.getElementById('addSessionModal')?.addEventListener('show.bs.modal', function() {
-  const b = this.querySelector('.modal-body');
-  if (!b.querySelector('select[name="meal_type"]')) b.innerHTML = sessionFields({});
-});
-
-// Auto-dismiss success banner
-const banner = document.getElementById('msgBanner');
-if (banner) setTimeout(() => banner.remove(), 4000);
+window.pageData = {
+  schools:    <?= json_encode($schools) ?>,
+  isSA:       <?= $isSA ? 'true' : 'false' ?>,
+  mySchoolId: <?= $schoolId ?? 'null' ?>
+};
 </script>
+<script src="../assets/js/feeding-log.js"></script>
 
-<?php
-function sessionFormFields($schools, $data, $isSA, $schoolId) { return ''; }
-require_once __DIR__ . '/../includes/footer.php';
-?>
+<?php require_once __DIR__ . '/../includes/footer.php'; ?>

@@ -1,7 +1,5 @@
 <?php
-// ============================================================
 // pages/schools.php  — Super Admin only
-// ============================================================
 if (session_status() === PHP_SESSION_NONE) session_start();
 require_once __DIR__ . '/../classes/Auth.php';
 require_once __DIR__ . '/../classes/School.php';
@@ -9,7 +7,7 @@ require_once __DIR__ . '/../includes/pagination.php';
 
 Auth::checkRole(['super_admin']);
 
-// ── Handle POST actions ──────────────────────────────────────
+// Handle POST actions
 $msg = $err = '';
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $action = $_POST['action'] ?? '';
@@ -33,7 +31,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 }
 
-// ── Pagination & Sort ───────────────────────────────────────
+// Pagination & Sort
 $search     = trim($_GET['search'] ?? '');
 $sortBy     = in_array($_GET['sort'] ?? '', ['name','address','beneficiary_count']) ? $_GET['sort'] : 'name';
 $sortDir    = ($_GET['dir'] ?? 'asc') === 'desc' ? 'desc' : 'asc';
@@ -165,7 +163,7 @@ require_once __DIR__ . '/../includes/header.php';
   </div>
 </div>
 
-<!-- ── Add Modal ── -->
+<!-- Add Modal -->
 <div class="modal fade" id="addModal" tabindex="-1">
   <div class="modal-dialog">
     <div class="modal-content">
@@ -194,7 +192,7 @@ require_once __DIR__ . '/../includes/header.php';
   </div>
 </div>
 
-<!-- ── Edit Modal ── -->
+<!-- Edit Modal -->
 <div class="modal fade" id="editModal" tabindex="-1">
   <div class="modal-dialog">
     <div class="modal-content">
@@ -224,7 +222,7 @@ require_once __DIR__ . '/../includes/header.php';
   </div>
 </div>
 
-<!-- ── Delete Confirm Modal ── -->
+<!-- Delete Confirm Modal -->
 <div class="modal fade" id="deleteModal" tabindex="-1">
   <div class="modal-dialog modal-sm">
     <div class="modal-content">
@@ -247,19 +245,6 @@ require_once __DIR__ . '/../includes/header.php';
   </div>
 </div>
 
-<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
-<script>
-function openEdit(id, name, address) {
-  document.getElementById('edit-id').value      = id;
-  document.getElementById('edit-name').value    = name;
-  document.getElementById('edit-address').value = address;
-  new bootstrap.Modal(document.getElementById('editModal')).show();
-}
-function confirmDelete(id, name) {
-  document.getElementById('del-id').value   = id;
-  document.getElementById('del-name').textContent = name;
-  new bootstrap.Modal(document.getElementById('deleteModal')).show();
-}
-</script>
+<script src="../assets/js/schools.js"></script>
 
 <?php require_once __DIR__ . '/../includes/footer.php'; ?>
