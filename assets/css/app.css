@@ -265,6 +265,20 @@ body {
   #main-content { margin-left: 0; }
 }
 
+/* Pagination */
+.pagination .page-link {
+  color: var(--primary);
+  border-color: #2d6a4f;
+}
+.pagination .page-link:hover {
+  background: rgba(45,106,79,.08);
+}
+.pagination .page-item.active .page-link {
+  background: var(--primary);
+  border-color: var(--primary);
+  color: #fff;
+}
+
 /* Responsive */
 @media (max-width: 768px) {
   #sidebar { width: 200px; }
