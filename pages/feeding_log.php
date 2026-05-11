@@ -4,6 +4,8 @@ if (session_status() === PHP_SESSION_NONE) session_start();
 require_once __DIR__ . '/../classes/Auth.php';
 require_once __DIR__ . '/../classes/FeedingLog.php';
 require_once __DIR__ . '/../config/db.php';
+require_once __DIR__ . '/../includes/helpers.php';
+require_once __DIR__ . '/../includes/pagination.php';
 Auth::check();
 
 $user     = Auth::user();
@@ -18,7 +20,8 @@ $action = $_POST['action'] ?? $_GET['action'] ?? '';
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && $action === 'save_attendance') {
     $sessionId  = (int)$_POST['session_id'];
     $presentIds = array_map('intval', $_POST['present'] ?? []);
-    FeedingLog::saveAttendance($sessionId, $presentIds);
+    $targetIds  = array_map('intval', $_POST['target_ids'] ?? []);
+    FeedingLog::saveAttendance($sessionId, $presentIds, $targetIds);
     header('Location: feeding_log.php?msg=saved');
     exit;
 }
@@ -53,10 +56,20 @@ $attendance     = [];
 if (isset($_GET['session_id'])) {
     $sid            = (int)$_GET['session_id'];
     $attendanceView = FeedingLog::getSessionById($sid);
-    $attendance     = FeedingLog::getAttendanceForSession($sid);
+    
+    $teacherGrade   = Auth::isTeacher() ? $user['grade_level'] : null;
+    $teacherSection = Auth::isTeacher() ? $user['section'] : null;
+    $attendance     = FeedingLog::getAttendanceForSession($sid, $teacherGrade, $teacherSection);
 }
 
-$sessions  = FeedingLog::getSessions($schoolId);
+$totalCount = FeedingLog::countSessions($schoolId);
+$pag = paginate($totalCount, 15);
+
+$sortBy  = in_array($_GET['sort'] ?? '', ['session_date', 'school_name', 'meal_type', 'present_count']) ? $_GET['sort'] : 'session_date';
+$sortDir = ($_GET['dir'] ?? 'desc') === 'asc' ? 'asc' : 'desc'; // Default DESC for dates
+
+$sessions  = FeedingLog::getSessions($schoolId, $pag['page'], $pag['perPage'], $sortBy, $sortDir);
+
 $pageTitle = 'Feeding Log';
 require_once __DIR__ . '/../includes/header.php';
 ?>
@@ -91,6 +104,7 @@ require_once __DIR__ . '/../includes/header.php';
       <div style="padding:.75rem 1rem;">
         <div class="row g-2">
           <?php foreach ($attendance as $pupil): ?>
+          <input type="hidden" name="target_ids[]" value="<?= $pupil['beneficiary_id'] ?>">
           <div class="col-12 col-sm-6 col-md-4">
             <label class="d-flex align-items-center gap-2 p-2"
                    style="border:1px solid #eee;border-radius:7px;cursor:pointer;
@@ -101,7 +115,7 @@ require_once __DIR__ . '/../includes/header.php';
                      class="form-check-input" style="width:1.1rem;height:1.1rem;">
               <div>
                 <div style="font-size:.855rem;font-weight:500;"><?= htmlspecialchars($pupil['full_name']) ?></div>
-                <div style="font-size:.72rem;color:#6c757d;"><?= htmlspecialchars($pupil['grade_level']) ?></div>
+                <div style="font-size:.72rem;color:#6c757d;"><?= htmlspecialchars($pupil['grade_level']) ?> - <?= htmlspecialchars($pupil['lrn']) ?></div>
               </div>
             </label>
           </div>
@@ -131,10 +145,26 @@ require_once __DIR__ . '/../includes/header.php';
     <table class="table" id="sessionsTable">
       <thead>
         <tr>
-          <th>Date</th>
-          <th>School</th>
-          <th class="text-center">Meal</th>
-          <th class="text-center">Present</th>
+          <th>
+            <a href="<?= sortUrl('session_date', $sortBy, $sortDir) ?>" class="text-decoration-none text-inherit">
+              Date <?= sortIcon('session_date', $sortBy, $sortDir) ?>
+            </a>
+          </th>
+          <th>
+            <a href="<?= sortUrl('school_name', $sortBy, $sortDir) ?>" class="text-decoration-none text-inherit">
+              School <?= sortIcon('school_name', $sortBy, $sortDir) ?>
+            </a>
+          </th>
+          <th class="text-center">
+            <a href="<?= sortUrl('meal_type', $sortBy, $sortDir) ?>" class="text-decoration-none text-inherit">
+              Meal <?= sortIcon('meal_type', $sortBy, $sortDir) ?>
+            </a>
+          </th>
+          <th class="text-center">
+            <a href="<?= sortUrl('present_count', $sortBy, $sortDir) ?>" class="text-decoration-none text-inherit">
+              Present <?= sortIcon('present_count', $sortBy, $sortDir) ?>
+            </a>
+          </th>
           <th class="text-center">Attendance</th>
           <th class="text-center">Action</th>
         </tr>
@@ -185,6 +215,9 @@ require_once __DIR__ . '/../includes/header.php';
         <?php endif; ?>
       </tbody>
     </table>
+  </div>
+  <div class="px-3 pb-3">
+    <?= renderPagination($pag) ?>
   </div>
 </div>
 <?php endif; ?>

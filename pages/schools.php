@@ -4,6 +4,7 @@ if (session_status() === PHP_SESSION_NONE) session_start();
 require_once __DIR__ . '/../classes/Auth.php';
 require_once __DIR__ . '/../classes/School.php';
 require_once __DIR__ . '/../includes/pagination.php';
+require_once __DIR__ . '/../includes/helpers.php';
 
 Auth::checkRole(['super_admin']);
 
@@ -47,19 +48,7 @@ if ($search) {
     );
 }
 
-// Helper: build sort URL for a column
-function sortUrl(string $col, string $currentSort, string $currentDir): string {
-    $newDir = ($currentSort === $col && $currentDir === 'asc') ? 'desc' : 'asc';
-    $q = array_merge($_GET, ['sort' => $col, 'dir' => $newDir, 'page' => 1]);
-    return '?' . http_build_query($q);
-}
-// Helper: sort icon
-function sortIcon(string $col, string $currentSort, string $currentDir): string {
-    if ($currentSort !== $col) return '<i class="bi bi-arrow-down-up ms-1" style="color:#d1d5db;"></i>';
-    return $currentDir === 'asc'
-        ? '<i class="bi bi-sort-alpha-down ms-1" style="color:var(--primary);"></i>'
-        : '<i class="bi bi-sort-alpha-up ms-1" style="color:var(--primary);"></i>';
-}
+
 
 $pageTitle = 'Schools';
 require_once __DIR__ . '/../includes/header.php';
@@ -78,12 +67,16 @@ require_once __DIR__ . '/../includes/header.php';
 
 <!-- Top bar -->
 <div class="d-flex align-items-center justify-content-between mb-3 flex-wrap gap-2">
-  <form method="get" class="filter-bar">
-    <input type="text" name="search" class="form-control" placeholder="Search school…"
-           value="<?= htmlspecialchars($search) ?>" style="max-width:240px;">
-    <button class="btn-primary-custom" type="submit"><i class="bi bi-search"></i></button>
+  <form method="get" class="d-flex align-items-center gap-2 flex-nowrap">
+    <div class="input-group" style="width: 280px; max-width: 100%;">
+      <input type="text" name="search" class="form-control" placeholder="Search school…"
+             value="<?= htmlspecialchars($search) ?>">
+      <button class="btn-primary-custom" type="submit" style="border-top-left-radius: 0; border-bottom-left-radius: 0; margin-left: -1px; position: relative; z-index: 2;">
+        <i class="bi bi-search"></i>
+      </button>
+    </div>
     <?php if ($search): ?>
-      <a href="schools.php" class="btn-outline-custom"><i class="bi bi-x"></i> Clear</a>
+      <a href="schools.php" class="btn-outline-custom text-nowrap"><i class="bi bi-x"></i> Clear</a>
     <?php endif; ?>
   </form>
   <button class="btn-primary-custom" data-bs-toggle="modal" data-bs-target="#addModal">
@@ -139,6 +132,11 @@ require_once __DIR__ . '/../includes/header.php';
           <div class="dropdown">
             <button class="btn-dots" data-bs-toggle="dropdown"><i class="bi bi-three-dots"></i></button>
             <ul class="dropdown-menu dropdown-menu-end">
+              <li>
+                <a class="dropdown-item" href="nutritional.php?school_id=<?= $s['id'] ?>">
+                  <i class="bi bi-eye me-1"></i> View Nutritional
+                </a>
+              </li>
               <li>
                 <a class="dropdown-item" href="#"
                    onclick="openEdit(<?= $s['id'] ?>, '<?= addslashes($s['name']) ?>', '<?= addslashes($s['address']) ?>')">

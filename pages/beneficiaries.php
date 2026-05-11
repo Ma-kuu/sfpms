@@ -4,11 +4,14 @@ if (session_status() === PHP_SESSION_NONE) session_start();
 require_once __DIR__ . '/../classes/Auth.php';
 require_once __DIR__ . '/../classes/Beneficiary.php';
 require_once __DIR__ . '/../config/db.php';
+require_once __DIR__ . '/../includes/helpers.php';
+require_once __DIR__ . '/../includes/pagination.php';
 Auth::check();
 
-$user     = Auth::user();
-$isSA     = Auth::isSuperAdmin();
-$schoolId = $isSA ? null : (int)$user['school_id'];
+$user      = Auth::user();
+$isSA      = Auth::isSuperAdmin();
+$isTeacher = Auth::isTeacher();
+$schoolId  = $isSA ? null : (int)$user['school_id'];
 
 // POST actions
 $action = $_POST['action'] ?? $_GET['action'] ?? '';
@@ -22,8 +25,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             'last_name'   => trim($_POST['last_name'] ?? ''),
             'birthdate'   => $_POST['birthdate'] ?? '',
             'sex'         => $_POST['sex'] ?? 'Male',
-            'grade_level' => trim($_POST['grade_level'] ?? ''),
-            'section'     => trim($_POST['section'] ?? ''),
+            'grade_level' => $isTeacher ? $user['grade_level'] : trim($_POST['grade_level'] ?? ''),
+            'section'     => $isTeacher ? $user['section'] : trim($_POST['section'] ?? ''),
             'school_id'   => $isSA ? (int)$_POST['school_id'] : $schoolId,
             'status'      => $_POST['status'] ?? 'Active',
         ];
@@ -42,13 +45,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     exit;
 }
 
-// Filters
-$search   = trim($_GET['search'] ?? '');
-$grade    = trim($_GET['grade']  ?? '');
-$filterSch= $isSA ? (($_GET['school_id'] ?? '') ?: null) : $schoolId;
+// Filters — teachers locked to their grade + section
+$search    = trim($_GET['search'] ?? '');
+$grade     = $isTeacher ? $user['grade_level'] : trim($_GET['grade'] ?? '');
+$section   = $isTeacher ? $user['section'] : null;
+$filterSch = $isSA ? (($_GET['school_id'] ?? '') ?: null) : $schoolId;
 
-$rows   = Beneficiary::getAll($filterSch, $grade ?: null, $search ?: null);
-$grades = Beneficiary::getGrades();
+$totalCount = Beneficiary::countAll($filterSch, $grade ?: null, $search ?: null, $section);
+$pag        = paginate($totalCount, 20);
+
+$sortBy  = in_array($_GET['sort'] ?? '', ['lrn', 'last_name', 'school_name', 'grade_level', 'status']) ? $_GET['sort'] : 'last_name';
+$sortDir = ($_GET['dir'] ?? 'asc') === 'desc' ? 'desc' : 'asc';
+
+$rows   = Beneficiary::getAll($filterSch, $grade ?: null, $search ?: null, $section, $pag['page'], $pag['perPage'], $sortBy, $sortDir);
+$grades = ['Grade 1', 'Grade 2', 'Grade 3', 'Grade 4', 'Grade 5', 'Grade 6', 'Grade 7', 'Grade 8', 'Grade 9', 'Grade 10', 'Grade 11', 'Grade 12'];
 
 // Schools for dropdowns
 $pdo     = getPDO();
@@ -95,11 +105,31 @@ require_once __DIR__ . '/../includes/header.php';
     <table class="table" id="beneficiariesTable">
       <thead>
         <tr>
-          <th>LRN</th>
-          <th>Name</th>
-          <th>School</th>
-          <th class="text-center">Grade</th>
-          <th class="text-center">Status</th>
+          <th>
+            <a href="<?= sortUrl('lrn', $sortBy, $sortDir) ?>" class="text-decoration-none text-inherit">
+              LRN <?= sortIcon('lrn', $sortBy, $sortDir) ?>
+            </a>
+          </th>
+          <th>
+            <a href="<?= sortUrl('last_name', $sortBy, $sortDir) ?>" class="text-decoration-none text-inherit">
+              Name <?= sortIcon('last_name', $sortBy, $sortDir) ?>
+            </a>
+          </th>
+          <th>
+            <a href="<?= sortUrl('school_name', $sortBy, $sortDir) ?>" class="text-decoration-none text-inherit">
+              School <?= sortIcon('school_name', $sortBy, $sortDir) ?>
+            </a>
+          </th>
+          <th class="text-center">
+            <a href="<?= sortUrl('grade_level', $sortBy, $sortDir) ?>" class="text-decoration-none text-inherit">
+              Grade <?= sortIcon('grade_level', $sortBy, $sortDir) ?>
+            </a>
+          </th>
+          <th class="text-center">
+            <a href="<?= sortUrl('status', $sortBy, $sortDir) ?>" class="text-decoration-none text-inherit">
+              Status <?= sortIcon('status', $sortBy, $sortDir) ?>
+            </a>
+          </th>
           <th class="text-center">Action</th>
         </tr>
       </thead>
@@ -148,11 +178,10 @@ require_once __DIR__ . '/../includes/header.php';
       </tbody>
     </table>
   </div>
+  <div class="px-3 pb-3">
+    <?= renderPagination($pag) ?>
+  </div>
 </div>
-
-<p class="text-muted mt-2" style="font-size:.78rem;">
-  Showing <?= count($rows) ?> record<?= count($rows) !== 1 ? 's' : '' ?>
-</p>
 
 <!-- Add Modal -->
 <div class="modal fade" id="addModal" tabindex="-1" aria-labelledby="addModalLabel">

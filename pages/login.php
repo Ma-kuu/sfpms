@@ -79,12 +79,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     </form>
 
     <p class="hint-text">Demo: <code>admin@sfpms.edu.ph</code> / <code>password</code></p>
-  </div>
 
-  <div class="seal-row">
-    <img src="../assets/images/deped-seal.png" alt="DepEd Seal">
-    <img src="../assets/images/panabo-seal.png" alt="Panabo City Seal">
-    <img src="../assets/images/bp-seal.png" alt="Bagong Pilipinas Seal">
+    <div class="seal-row">
+      <img src="../assets/images/deped-seal.png" alt="DepEd Seal">
+      <img src="../assets/images/panabo-seal.png" alt="Panabo City Seal">
+      <img src="../assets/images/bp-seal.png" alt="Bagong Pilipinas Seal">
+    </div>
   </div>
   </div><!-- /login-wrapper -->
 

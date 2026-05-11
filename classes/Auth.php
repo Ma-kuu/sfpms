@@ -1,6 +1,5 @@
 <?php
 // classes/Auth.php
-
 require_once __DIR__ . '/../config/db.php';
 
 class Auth {
@@ -13,10 +12,12 @@ class Auth {
 
         if ($user && $password === $user['password']) {
             session_regenerate_id(true);
-            $_SESSION['user_id']    = $user['id'];
-            $_SESSION['user_name']  = $user['name'];
-            $_SESSION['user_role']  = $user['role'];
-            $_SESSION['school_id']  = $user['school_id'];
+            $_SESSION['user_id']     = $user['id'];
+            $_SESSION['user_name']   = $user['name'];
+            $_SESSION['user_role']   = $user['role'];
+            $_SESSION['school_id']   = $user['school_id'];
+            $_SESSION['grade_level'] = $user['grade_level'];
+            $_SESSION['section']     = $user['section'];
             return true;
         }
         return false;
@@ -46,14 +47,24 @@ class Auth {
 
     public static function user(): array {
         return [
-            'id'        => $_SESSION['user_id']   ?? null,
-            'name'      => $_SESSION['user_name']  ?? '',
-            'role'      => $_SESSION['user_role']  ?? '',
-            'school_id' => $_SESSION['school_id']  ?? null,
+            'id'          => $_SESSION['user_id']     ?? null,
+            'name'        => $_SESSION['user_name']   ?? '',
+            'role'        => $_SESSION['user_role']    ?? '',
+            'school_id'   => $_SESSION['school_id']   ?? null,
+            'grade_level' => $_SESSION['grade_level']  ?? null,
+            'section'     => $_SESSION['section']      ?? null,
         ];
     }
 
     public static function isSuperAdmin(): bool {
         return ($_SESSION['user_role'] ?? '') === 'super_admin';
+    }
+
+    public static function isTeacher(): bool {
+        return ($_SESSION['user_role'] ?? '') === 'teacher';
+    }
+
+    public static function isSchoolAdmin(): bool {
+        return ($_SESSION['user_role'] ?? '') === 'school_admin';
     }
 }

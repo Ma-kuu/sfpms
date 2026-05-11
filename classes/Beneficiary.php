@@ -5,11 +5,15 @@ require_once __DIR__ . '/../config/db.php';
 
 class Beneficiary {
 
-    // Fetch list with optional filters
     public static function getAll(
         ?int    $schoolId = null,
         ?string $grade    = null,
-        ?string $search   = null
+        ?string $search   = null,
+        ?string $section  = null,
+        int     $page     = 1,
+        int     $perPage  = 15,
+        string  $sortBy   = 'last_name',
+        string  $sortDir  = 'asc'
     ): array {
         $pdo    = getPDO();
         $where  = ['1=1'];
@@ -23,17 +27,34 @@ class Beneficiary {
             $where[]  = 'b.grade_level = ?';
             $params[] = $grade;
         }
+        if ($section) {
+            $where[]  = 'b.section = ?';
+            $params[] = $section;
+        }
         if ($search) {
             $where[]  = '(b.lrn LIKE ? OR b.first_name LIKE ? OR b.last_name LIKE ?)';
             $like     = "%{$search}%";
             $params   = array_merge($params, [$like, $like, $like]);
         }
 
-        $sql  = 'SELECT b.*, s.name AS school_name
+        $allowedSorts = ['lrn', 'last_name', 'school_name', 'grade_level', 'status'];
+        $sortBy = in_array($sortBy, $allowedSorts) ? $sortBy : 'last_name';
+        $sortDir = strtolower($sortDir) === 'desc' ? 'DESC' : 'ASC';
+
+        if ($sortBy === 'school_name') {
+            $orderBy = "s.name {$sortDir}, b.last_name ASC";
+        } else {
+            $orderBy = "b.{$sortBy} {$sortDir}, b.first_name ASC";
+        }
+
+        $offset = ($page - 1) * $perPage;
+
+        $sql  = "SELECT b.*, s.name AS school_name
                  FROM beneficiaries b
                  JOIN schools s ON s.id = b.school_id
-                 WHERE ' . implode(' AND ', $where) . '
-                 ORDER BY b.last_name, b.first_name';
+                 WHERE " . implode(' AND ', $where) . "
+                 ORDER BY {$orderBy}
+                 LIMIT " . (int)$perPage . " OFFSET " . (int)$offset;
         $stmt = $pdo->prepare($sql);
         $stmt->execute($params);
         return $stmt->fetchAll();
@@ -111,11 +132,35 @@ class Beneficiary {
         return $stmt->fetchAll();
     }
 
-    public static function countAll(?int $schoolId = null): int {
+    public static function countAll(
+        ?int    $schoolId = null,
+        ?string $grade    = null,
+        ?string $search   = null,
+        ?string $section  = null
+    ): int {
         $pdo    = getPDO();
-        $where  = $schoolId ? 'WHERE school_id = ?' : '';
-        $params = $schoolId ? [$schoolId] : [];
-        $stmt   = $pdo->prepare("SELECT COUNT(*) FROM beneficiaries {$where}");
+        $where  = ['1=1'];
+        $params = [];
+
+        if ($schoolId) {
+            $where[]  = 'school_id = ?';
+            $params[] = $schoolId;
+        }
+        if ($grade) {
+            $where[]  = 'grade_level = ?';
+            $params[] = $grade;
+        }
+        if ($section) {
+            $where[]  = 'section = ?';
+            $params[] = $section;
+        }
+        if ($search) {
+            $where[]  = '(lrn LIKE ? OR first_name LIKE ? OR last_name LIKE ?)';
+            $like     = "%{$search}%";
+            $params   = array_merge($params, [$like, $like, $like]);
+        }
+        $sql  = 'SELECT COUNT(*) FROM beneficiaries WHERE ' . implode(' AND ', $where);
+        $stmt = $pdo->prepare($sql);
         $stmt->execute($params);
         return (int) $stmt->fetchColumn();
     }

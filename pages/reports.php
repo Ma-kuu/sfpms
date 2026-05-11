@@ -5,9 +5,10 @@ require_once __DIR__ . '/../classes/Auth.php';
 require_once __DIR__ . '/../config/db.php';
 Auth::check();
 
-$user     = Auth::user();
-$isSA     = Auth::isSuperAdmin();
-$schoolId = $isSA ? null : (int)$user['school_id'];
+$user      = Auth::user();
+$isSA      = Auth::isSuperAdmin();
+$isTeacher = Auth::isTeacher();
+$schoolId  = $isSA ? null : (int)$user['school_id'];
 $pdo      = getPDO();
 $schools  = $pdo->query('SELECT id, name FROM schools ORDER BY name')->fetchAll();
 
@@ -92,7 +93,9 @@ require_once __DIR__ . '/../includes/header.php';
         <option value="">— Select Type —</option>
         <option value="attendance"  <?= $type==='attendance'  ? 'selected' : '' ?>>Attendance Summary</option>
         <option value="nutritional" <?= $type==='nutritional' ? 'selected' : '' ?>>Nutritional Status</option>
+        <?php if (!$isTeacher): ?>
         <option value="inventory"   <?= $type==='inventory'   ? 'selected' : '' ?>>Inventory Status</option>
+        <?php endif; ?>
       </select>
     </div>
     <?php if ($isSA): ?>

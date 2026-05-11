@@ -5,17 +5,90 @@ require_once __DIR__ . '/../config/db.php';
 
 class Inventory {
 
-    public static function getAll(?int $schoolId = null): array {
+    public static function getAll(
+        ?int $schoolId = null,
+        string $statusFilter = '',
+        int $page = 1,
+        int $perPage = 15,
+        string $sortBy = 'item_name',
+        string $sortDir = 'asc'
+    ): array {
         $pdo    = getPDO();
-        $where  = $schoolId ? 'WHERE i.school_id = ?' : '';
-        $params = $schoolId ? [$schoolId] : [];
-        $sql    = "
+        $where  = ['1=1'];
+        $params = [];
+
+        if ($schoolId) {
+            $where[]  = 'i.school_id = ?';
+            $params[] = $schoolId;
+        }
+
+        if ($statusFilter === 'low') {
+            $where[] = 'i.quantity <= i.low_stock_threshold';
+        } elseif ($statusFilter === 'adequate') {
+            $where[] = 'i.quantity > i.low_stock_threshold';
+        }
+
+        $allowedSorts = ['item_name', 'school_name', 'quantity', 'unit'];
+        $sortBy = in_array($sortBy, $allowedSorts) ? $sortBy : 'item_name';
+        $sortDir = strtolower($sortDir) === 'desc' ? 'DESC' : 'ASC';
+
+        if ($sortBy === 'school_name') {
+            $orderBy = "s.name {$sortDir}, i.item_name ASC";
+        } else {
+            $orderBy = "i.{$sortBy} {$sortDir}, i.item_name ASC";
+        }
+
+        $offset = ($page - 1) * $perPage;
+
+        $sql = "
             SELECT i.*, s.name AS school_name,
                    IF(i.quantity <= i.low_stock_threshold, 1, 0) AS is_low
             FROM inventory i
             JOIN schools s ON s.id = i.school_id
+            WHERE " . implode(' AND ', $where) . "
+            ORDER BY {$orderBy}
+            LIMIT " . (int)$perPage . " OFFSET " . (int)$offset . "
+        ";
+        $stmt = $pdo->prepare($sql);
+        $stmt->execute($params);
+        return $stmt->fetchAll();
+    }
+
+    public static function countAll(?int $schoolId = null, string $statusFilter = ''): int {
+        $pdo    = getPDO();
+        $where  = ['1=1'];
+        $params = [];
+
+        if ($schoolId) {
+            $where[]  = 'school_id = ?';
+            $params[] = $schoolId;
+        }
+
+        if ($statusFilter === 'low') {
+            $where[] = 'quantity <= low_stock_threshold';
+        } elseif ($statusFilter === 'adequate') {
+            $where[] = 'quantity > low_stock_threshold';
+        }
+
+        $sql = "SELECT COUNT(*) FROM inventory WHERE " . implode(' AND ', $where);
+        $stmt = $pdo->prepare($sql);
+        $stmt->execute($params);
+        return (int) $stmt->fetchColumn();
+    }
+
+    public static function getSchoolSummaries(?int $schoolId = null): array {
+        $pdo    = getPDO();
+        $where  = $schoolId ? 'WHERE s.id = ?' : '';
+        $params = $schoolId ? [$schoolId] : [];
+        $sql    = "
+            SELECT s.id AS school_id, s.name AS school_name,
+                   COUNT(i.id) AS total_items,
+                   SUM(IF(i.quantity <= i.low_stock_threshold, 1, 0)) AS low_stock_items
+            FROM schools s
+            LEFT JOIN inventory i ON s.id = i.school_id
             {$where}
-            ORDER BY s.name, i.item_name
+            GROUP BY s.id, s.name
+            ORDER BY s.name
         ";
         $stmt = $pdo->prepare($sql);
         $stmt->execute($params);

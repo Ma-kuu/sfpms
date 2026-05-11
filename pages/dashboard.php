@@ -5,59 +5,74 @@ require_once __DIR__ . '/../classes/Auth.php';
 require_once __DIR__ . '/../classes/Beneficiary.php';
 require_once __DIR__ . '/../classes/FeedingLog.php';
 require_once __DIR__ . '/../classes/Inventory.php';
+require_once __DIR__ . '/../config/db.php';
 Auth::check();
 
 $user      = Auth::user();
-$schoolId  = Auth::isSuperAdmin() ? null : $user['school_id'];
+$isSA      = Auth::isSuperAdmin();
+$isTeacher = Auth::isTeacher();
+$schoolId  = $isSA ? null : (int)$user['school_id'];
+$pdo       = getPDO();
 
-$totalBeneficiaries = Beneficiary::countAll($schoolId);
+// Teacher: count only their section
+$teacherGrade   = $isTeacher ? $user['grade_level'] : null;
+$teacherSection = $isTeacher ? $user['section'] : null;
+
+$totalBeneficiaries = $isTeacher
+    ? count(Beneficiary::getAll($schoolId, $teacherGrade, null, $teacherSection))
+    : Beneficiary::countAll($schoolId);
 $totalSessions      = FeedingLog::countSessions($schoolId);
-$lowStockCount      = Inventory::getLowStockCount($schoolId);
-$flaggedAbsent      = Beneficiary::getFlaggedAbsent($schoolId);
-$flaggedCount       = count($flaggedAbsent);
 
-$chartData          = FeedingLog::getBeneficiaryCountPerSchool();
-$chartLabels        = array_column($chartData, 'school_name');
-$chartValues        = array_column($chartData, 'total');
+// Chart 1 — role-specific
+// SA: beneficiaries per school | School Admin: per grade | Teacher: their section students list
+if ($isSA) {
+    $chartData   = FeedingLog::getBeneficiaryCountPerSchool();
+    $chartLabels = array_column($chartData, 'school_name');
+    $chartValues = array_map('intval', array_column($chartData, 'total'));
+    $chartTitle  = 'Beneficiaries per School';
+} elseif ($isTeacher) {
+    // Teacher: show their students' attendance rate
+    $myStudents  = Beneficiary::getAll($schoolId, $teacherGrade, null, $teacherSection);
+    $chartLabels = array_map(fn($s) => $s['first_name'] . ' ' . substr($s['last_name'], 0, 1) . '.', $myStudents);
+    $chartValues = array_map(fn($s) => 1, $myStudents); // just count
+    $chartTitle  = "My Students ({$teacherGrade} - {$teacherSection})";
+} else {
+    // School Admin: beneficiaries per grade in their school
+    $gradeData = $pdo->prepare("
+        SELECT grade_level, COUNT(*) AS total
+        FROM beneficiaries WHERE school_id = ? AND status='Active'
+        GROUP BY grade_level ORDER BY grade_level
+    ");
+    $gradeData->execute([$schoolId]);
+    $gradeRows   = $gradeData->fetchAll();
+    $chartLabels = array_column($gradeRows, 'grade_level');
+    $chartValues = array_map('intval', array_column($gradeRows, 'total'));
+    $chartTitle  = 'Beneficiaries per Grade';
+}
 
-$lowStockItems      = Inventory::getAll($schoolId);
-$lowStockItems      = array_filter($lowStockItems, fn($i) => $i['is_low']);
+// Chart 2 — Attendance Today
+$latestSession = $pdo->query("SELECT id, session_date FROM feeding_sessions WHERE 1=1 " . ($schoolId ? "AND school_id = " . (int)$schoolId : "") . " ORDER BY session_date DESC LIMIT 1")->fetch();
 
-// Chart 2 — BMI Classification breakdown
-require_once __DIR__ . '/../config/db.php';
-$pdo = getPDO();
-$bmiWhere  = $schoolId ? 'AND b.school_id = ' . (int)$schoolId : '';
-$bmiRows   = $pdo->query("
-    SELECT
-        CASE
-            WHEN nr.bmi < 14   THEN 'Severely Wasted'
-            WHEN nr.bmi < 16   THEN 'Wasted'
-            WHEN nr.bmi < 25   THEN 'Normal'
-            WHEN nr.bmi < 30   THEN 'Overweight'
-            ELSE 'Obese'
-        END AS classification,
-        COUNT(*) AS total
-    FROM (
-        SELECT nr.bmi, nr.beneficiary_id
-        FROM nutritional_records nr
-        JOIN (SELECT MAX(id) AS maxid FROM nutritional_records GROUP BY beneficiary_id) latest
-            ON nr.id = latest.maxid
-        JOIN beneficiaries b ON b.id = nr.beneficiary_id
-        WHERE 1=1 {$bmiWhere}
-    ) nr
-    GROUP BY classification
-    ORDER BY total DESC
-")->fetchAll();
-$bmiLabels = array_column($bmiRows, 'classification');
-$bmiValues = array_map('intval', array_column($bmiRows, 'total'));
-$bmiColors = array_map(fn($l) => match($l) {
-    'Severely Wasted' => '#DC3545',
-    'Wasted'          => '#fd7e14',
-    'Normal'          => '#2D6A4F',
-    'Overweight'      => '#ffc107',
-    'Obese'           => '#6f42c1',
-    default           => '#adb5bd'
-}, $bmiLabels);
+$todayDate = 'No Sessions Yet';
+$todayLabels = ['Present', 'Absent'];
+$todayValues = [0, 0];
+
+if ($latestSession) {
+    $todayDate = date('M j, Y', strtotime($latestSession['session_date']));
+    $sid = $latestSession['id'];
+    
+    $attTodayWhere = "";
+    if ($isTeacher) {
+        $attTodayWhere .= " AND b.grade_level = " . $pdo->quote($teacherGrade)
+                      .  " AND b.section = " . $pdo->quote($teacherSection);
+    }
+    
+    $present = $pdo->query("SELECT SUM(fa.present) FROM feeding_attendance fa JOIN beneficiaries b ON b.id = fa.beneficiary_id WHERE fa.session_id = {$sid} {$attTodayWhere}")->fetchColumn() ?: 0;
+    $total = $pdo->query("SELECT COUNT(*) FROM feeding_attendance fa JOIN beneficiaries b ON b.id = fa.beneficiary_id WHERE fa.session_id = {$sid} {$attTodayWhere}")->fetchColumn() ?: 0;
+    $absent = $total - $present;
+    
+    $todayValues = [(int)$present, (int)$absent];
+}
 
 // Chart 3 — Attendance trend (last 10 sessions)
 $attWhere  = $schoolId ? 'AND fs.school_id = ' . (int)$schoolId : '';
@@ -77,63 +92,12 @@ $pageTitle = 'Dashboard';
 require_once __DIR__ . '/../includes/header.php';
 ?>
 
-<!-- KPI Strip -->
-<div class="kpi-strip">
-  <div class="kpi-stat">
-    <div class="kpi-stat-label">Total Beneficiaries</div>
-    <div class="kpi-stat-val"><?= $totalBeneficiaries ?></div>
-  </div>
-  <div class="kpi-divider"></div>
-  <div class="kpi-stat">
-    <div class="kpi-stat-label">Feeding Sessions</div>
-    <div class="kpi-stat-val"><?= $totalSessions ?></div>
-  </div>
-  <div class="kpi-divider"></div>
-  <div class="kpi-stat">
-    <div class="kpi-stat-label">Missed 3+ Sessions</div>
-    <div class="kpi-stat-val" style="color:<?= $flaggedCount > 0 ? '#DC3545' : 'inherit' ?>">
-      <?= $flaggedCount ?>
-    </div>
-  </div>
-  <div class="kpi-divider"></div>
-  <div class="kpi-stat">
-    <div class="kpi-stat-label">Low Stock Items</div>
-    <div class="kpi-stat-val" style="color:<?= $lowStockCount > 0 ? '#DC3545' : 'inherit' ?>">
-      <?= $lowStockCount ?>
-    </div>
-  </div>
-</div>
-
-
-<!-- Alert blocks -->
-<?php if ($flaggedCount > 0): ?>
-<div class="alert-block danger mb-3">
-  <i class="bi bi-person-x-fill"></i>
-  <div>
-    <strong><?= $flaggedCount ?> beneficiar<?= $flaggedCount > 1 ? 'ies have' : 'y has' ?> missed 3 or more consecutive feeding sessions.</strong>
-    <div style="font-size:.8rem;margin-top:.2rem;">
-      <?= implode(', ', array_map(fn($b) => htmlspecialchars($b['first_name'] . ' ' . $b['last_name']), $flaggedAbsent)) ?>
-    </div>
-  </div>
-</div>
-<?php endif; ?>
-
-<?php if (!empty($lowStockItems)): ?>
-<div class="alert-block warning mb-4">
-  <i class="bi bi-exclamation-triangle-fill"></i>
-  <div>
-    <strong>Low stock alert:</strong>
-    <?= implode(', ', array_map(fn($i) => htmlspecialchars($i['item_name'] . ' (' . $i['school_name'] . ')'), $lowStockItems)) ?>
-  </div>
-</div>
-<?php endif; ?>
-
 <!-- Chart + Quick Summary -->
 <div class="row g-3">
   <div class="col-md-8">
     <div class="chart-card">
       <div class="d-flex align-items-center justify-content-between mb-2">
-        <h6 class="mb-0"><i class="bi bi-bar-chart-line-fill me-1"></i> Beneficiaries per School</h6>
+        <h6 class="mb-0"><i class="bi bi-bar-chart-line-fill me-1"></i> <?= $chartTitle ?></h6>
         <div class="d-flex align-items-center gap-2">
           <span id="chart-page-label" style="font-size:.72rem;color:#9ca3af;"></span>
           <button id="chart-prev" class="btn-dots" title="Previous"><i class="bi bi-chevron-left"></i></button>
@@ -150,17 +114,25 @@ require_once __DIR__ . '/../includes/header.php';
       <h6><i class="bi bi-info-circle-fill me-1"></i> Quick Info</h6>
       <div style="font-size:.875rem;">
         <div class="d-flex justify-content-between align-items-center py-2" style="border-bottom:1px solid #eee;">
-          <span style="color:#374151;">Total Sessions Logged</span>
+          <span style="color:#374151;">Total Sessions</span>
           <span class="status-badge badge-active"><?= $totalSessions ?></span>
         </div>
         <div class="d-flex justify-content-between align-items-center py-2" style="border-bottom:1px solid #eee;">
-          <span style="color:#374151;">Total Beneficiaries</span>
+          <span style="color:#374151;"><?= $isTeacher ? 'My Students' : 'Beneficiaries' ?></span>
           <span class="status-badge badge-success"><?= $totalBeneficiaries ?></span>
         </div>
-        <div class="d-flex justify-content-between align-items-center py-2">
+        <?php if (!$isTeacher): ?>
+        <div class="d-flex justify-content-between align-items-center py-2" style="border-bottom:1px solid #eee;">
           <span style="color:#374151;">Low Stock Items</span>
           <span class="status-badge <?= $lowStockCount > 0 ? 'badge-danger' : 'badge-success' ?>">
             <?= $lowStockCount ?>
+          </span>
+        </div>
+        <?php endif; ?>
+        <div class="d-flex justify-content-between align-items-center py-2">
+          <span style="color:#374151;">Needs Recheck</span>
+          <span class="status-badge <?= $needsRecheck > 0 ? 'badge-warning' : 'badge-success' ?>">
+            <?= $needsRecheck ?>
           </span>
         </div>
       </div>
@@ -170,16 +142,17 @@ require_once __DIR__ . '/../includes/header.php';
 
 <!-- 2nd Chart Row -->
 <div class="row g-3 mt-1">
-  <!-- BMI Doughnut -->
   <div class="col-md-5">
     <div class="chart-card">
-      <h6><i class="bi bi-heart-pulse-fill me-1"></i> BMI Classification</h6>
-      <div style="position:relative;height:220px;display:flex;align-items:center;justify-content:center;">
-        <canvas id="bmiChart"></canvas>
+      <div class="d-flex justify-content-between align-items-center mb-2">
+        <h6 class="mb-0"><i class="bi bi-calendar2-check-fill me-1"></i> Attendance Today</h6>
+        <span style="font-size:.72rem;color:#9ca3af;"><?= $todayDate ?></span>
+      </div>
+      <div style="position:relative;height:200px;display:flex;align-items:center;justify-content:center;">
+        <canvas id="todayChart"></canvas>
       </div>
     </div>
   </div>
-  <!-- Attendance Trend -->
   <div class="col-md-7">
     <div class="chart-card">
       <h6><i class="bi bi-graph-up me-1"></i> Attendance Rate Trend (%)</h6>
@@ -195,9 +168,8 @@ require_once __DIR__ . '/../includes/header.php';
 window.pageData = {
   chartLabels: <?= json_encode($chartLabels) ?>,
   chartValues: <?= json_encode(array_map('intval', $chartValues)) ?>,
-  bmiLabels:   <?= json_encode($bmiLabels) ?>,
-  bmiValues:   <?= json_encode($bmiValues) ?>,
-  bmiColors:   <?= json_encode($bmiColors) ?>,
+  todayLabels: <?= json_encode($todayLabels) ?>,
+  todayValues: <?= json_encode($todayValues) ?>,
   attLabels:   <?= json_encode($attLabels) ?>,
   attValues:   <?= json_encode($attValues) ?>
 };

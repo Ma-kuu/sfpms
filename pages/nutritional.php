@@ -4,6 +4,8 @@ if (session_status() === PHP_SESSION_NONE) session_start();
 require_once __DIR__ . '/../classes/Auth.php';
 require_once __DIR__ . '/../classes/NutritionalRecord.php';
 require_once __DIR__ . '/../config/db.php';
+require_once __DIR__ . '/../includes/helpers.php';
+require_once __DIR__ . '/../includes/pagination.php';
 Auth::check();
 
 $user     = Auth::user();
@@ -16,11 +18,24 @@ $schools      = $pdo->query('SELECT id, name FROM schools ORDER BY name')->fetch
 $schFilter    = $isSA ? (($_GET['school_id'] ?? '') ?: null) : $schoolId;
 $search       = trim($_GET['search'] ?? '');
 
+$isTeacher = Auth::isTeacher();
+$teacherGrade   = $isTeacher ? $user['grade_level'] : null;
+$teacherSection = $isTeacher ? $user['section'] : null;
+
 // All active beneficiaries for add/edit dropdowns
-$benQuery = $schoolId
-    ? $pdo->prepare("SELECT id, CONCAT(first_name,' ',last_name) AS full_name, lrn FROM beneficiaries WHERE school_id = ? AND status='Active' ORDER BY last_name")
-    : $pdo->prepare("SELECT id, CONCAT(first_name,' ',last_name) AS full_name, lrn FROM beneficiaries WHERE status='Active' ORDER BY last_name");
-$schoolId ? $benQuery->execute([$schoolId]) : $benQuery->execute();
+$benWhere = "status='Active'";
+$benParams = [];
+if ($schoolId) {
+    $benWhere .= " AND school_id = ?";
+    $benParams[] = $schoolId;
+}
+if ($isTeacher) {
+    $benWhere .= " AND grade_level = ? AND section = ?";
+    $benParams[] = $teacherGrade;
+    $benParams[] = $teacherSection;
+}
+$benQuery = $pdo->prepare("SELECT id, CONCAT(first_name,' ',last_name) AS full_name, lrn FROM beneficiaries WHERE $benWhere ORDER BY last_name");
+$benQuery->execute($benParams);
 $beneficiaries = $benQuery->fetchAll();
 
 // CRUD
@@ -48,7 +63,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     exit;
 }
 
-$records   = NutritionalRecord::getAll($schFilter, $search ?: null);
+$classFilter = $_GET['classification'] ?? '';
+
+$totalCount = NutritionalRecord::countAll($schFilter, $search ?: null, $teacherGrade, $teacherSection, $classFilter);
+$pag = paginate($totalCount, 20);
+
+$sortBy  = in_array($_GET['sort'] ?? '', ['full_name', 'record_date', 'weight_kg', 'height_cm', 'bmi']) ? $_GET['sort'] : 'full_name';
+$sortDir = ($_GET['dir'] ?? 'asc') === 'desc' ? 'desc' : 'asc';
+
+$records = NutritionalRecord::getAll($schFilter, $search ?: null, $teacherGrade, $teacherSection, $classFilter, $pag['page'], $pag['perPage'], $sortBy, $sortDir);
 $pageTitle = 'Nutritional Records';
 require_once __DIR__ . '/../includes/header.php';
 ?>
@@ -69,6 +92,14 @@ require_once __DIR__ . '/../includes/header.php';
         <?php endforeach; ?>
       </select>
       <?php endif; ?>
+      <select name="classification" class="form-select">
+        <option value="">All Classifications</option>
+        <option value="Severely Wasted" <?= $classFilter === 'Severely Wasted' ? 'selected' : '' ?>>Severely Wasted</option>
+        <option value="Wasted" <?= $classFilter === 'Wasted' ? 'selected' : '' ?>>Wasted</option>
+        <option value="Normal" <?= $classFilter === 'Normal' ? 'selected' : '' ?>>Normal</option>
+        <option value="Overweight" <?= $classFilter === 'Overweight' ? 'selected' : '' ?>>Overweight</option>
+        <option value="Obese" <?= $classFilter === 'Obese' ? 'selected' : '' ?>>Obese</option>
+      </select>
       <button type="submit" class="btn-primary-custom"><i class="bi bi-search"></i> Filter</button>
       <a href="nutritional.php" class="btn-outline-custom">Clear</a>
     </form>
@@ -81,11 +112,31 @@ require_once __DIR__ . '/../includes/header.php';
     <table class="table" id="nutTable">
       <thead>
         <tr>
-          <th>Name</th>
-          <th class="text-center">Date</th>
-          <th class="text-center">Weight (kg)</th>
-          <th class="text-center">Height (cm)</th>
-          <th class="text-center">BMI</th>
+          <th>
+            <a href="<?= sortUrl('full_name', $sortBy, $sortDir) ?>" class="text-decoration-none text-inherit">
+              Name <?= sortIcon('full_name', $sortBy, $sortDir) ?>
+            </a>
+          </th>
+          <th class="text-center">
+            <a href="<?= sortUrl('record_date', $sortBy, $sortDir) ?>" class="text-decoration-none text-inherit">
+              Date <?= sortIcon('record_date', $sortBy, $sortDir) ?>
+            </a>
+          </th>
+          <th class="text-center">
+            <a href="<?= sortUrl('weight_kg', $sortBy, $sortDir) ?>" class="text-decoration-none text-inherit">
+              Weight (kg) <?= sortIcon('weight_kg', $sortBy, $sortDir) ?>
+            </a>
+          </th>
+          <th class="text-center">
+            <a href="<?= sortUrl('height_cm', $sortBy, $sortDir) ?>" class="text-decoration-none text-inherit">
+              Height (cm) <?= sortIcon('height_cm', $sortBy, $sortDir) ?>
+            </a>
+          </th>
+          <th class="text-center">
+            <a href="<?= sortUrl('bmi', $sortBy, $sortDir) ?>" class="text-decoration-none text-inherit">
+              BMI <?= sortIcon('bmi', $sortBy, $sortDir) ?>
+            </a>
+          </th>
           <th class="text-center">Classification</th>
           <th class="text-center">Action</th>
         </tr>
@@ -135,8 +186,10 @@ require_once __DIR__ . '/../includes/header.php';
       </tbody>
     </table>
   </div>
+  <div class="px-3 pb-3">
+    <?= renderPagination($pag) ?>
+  </div>
 </div>
-<p class="text-muted mt-2" style="font-size:.78rem;"><?= count($records) ?> record<?= count($records) !== 1 ? 's' : '' ?></p>
 
 <!-- Add Modal -->
 <div class="modal fade" id="addNutModal" tabindex="-1">

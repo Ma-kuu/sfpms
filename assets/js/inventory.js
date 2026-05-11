@@ -5,17 +5,11 @@
 
   const schools = P.schools;
   const isSA    = P.isSA;
-  const schId   = P.mySchoolId;
+  const schId = P.viewSchoolId || P.mySchoolId;
 
   function invFields(d = {}) {
-    const schOpts = schools.map(s =>
-      `<option value="${s.id}" ${d.school_id==s.id?'selected':''}>${s.name}</option>`
-    ).join('');
-
     return `
-      ${isSA ? `<div class="mb-3"><label class="form-label">School</label>
-        <select name="school_id" class="form-select" required>${schOpts}</select></div>`
-        : `<input type="hidden" name="school_id" value="${schId}">`}
+      <input type="hidden" name="school_id" value="${d.school_id || schId}">
       <div class="mb-3"><label class="form-label">Item Name</label>
         <input type="text" name="item_name" class="form-control" value="${d.item_name||''}" required></div>
       <div class="row g-3 mb-3">

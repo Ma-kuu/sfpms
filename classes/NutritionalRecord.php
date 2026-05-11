@@ -25,7 +25,17 @@ class NutritionalRecord {
         };
     }
 
-    public static function getAll(?int $schoolId = null, ?string $search = null): array {
+    public static function getAll(
+        ?int $schoolId = null,
+        ?string $search = null,
+        ?string $grade = null,
+        ?string $section = null,
+        string $classFilter = '',
+        int $page = 1,
+        int $perPage = 15,
+        string $sortBy = 'full_name',
+        string $sortDir = 'asc'
+    ): array {
         $pdo    = getPDO();
         $where  = ['1=1'];
         $params = [];
@@ -34,11 +44,43 @@ class NutritionalRecord {
             $where[]  = 'b.school_id = ?';
             $params[] = $schoolId;
         }
+        if ($grade) {
+            $where[]  = 'b.grade_level = ?';
+            $params[] = $grade;
+        }
+        if ($section) {
+            $where[]  = 'b.section = ?';
+            $params[] = $section;
+        }
         if ($search) {
             $where[]  = '(b.first_name LIKE ? OR b.last_name LIKE ? OR b.lrn LIKE ?)';
             $like     = "%{$search}%";
             $params   = array_merge($params, [$like, $like, $like]);
         }
+
+        if ($classFilter === 'Severely Wasted') {
+            $where[] = 'nr.bmi < 14.0';
+        } elseif ($classFilter === 'Wasted') {
+            $where[] = 'nr.bmi >= 14.0 AND nr.bmi < 16.0';
+        } elseif ($classFilter === 'Normal') {
+            $where[] = 'nr.bmi >= 16.0 AND nr.bmi < 25.0';
+        } elseif ($classFilter === 'Overweight') {
+            $where[] = 'nr.bmi >= 25.0 AND nr.bmi < 30.0';
+        } elseif ($classFilter === 'Obese') {
+            $where[] = 'nr.bmi >= 30.0';
+        }
+
+        $allowedSorts = ['full_name', 'record_date', 'weight_kg', 'height_cm', 'bmi'];
+        $sortBy = in_array($sortBy, $allowedSorts) ? $sortBy : 'full_name';
+        $sortDir = strtolower($sortDir) === 'desc' ? 'DESC' : 'ASC';
+
+        if ($sortBy === 'full_name') {
+            $orderBy = "b.last_name {$sortDir}, b.first_name ASC";
+        } else {
+            $orderBy = "nr.{$sortBy} {$sortDir}, b.last_name ASC";
+        }
+
+        $offset = ($page - 1) * $perPage;
 
         $sql  = "
             SELECT nr.*,
@@ -49,11 +91,64 @@ class NutritionalRecord {
             JOIN beneficiaries b ON b.id = nr.beneficiary_id
             JOIN schools s ON s.id = b.school_id
             WHERE " . implode(' AND ', $where) . "
-            ORDER BY nr.record_date DESC, b.last_name
+            ORDER BY {$orderBy}
+            LIMIT " . (int)$perPage . " OFFSET " . (int)$offset . "
         ";
         $stmt = $pdo->prepare($sql);
         $stmt->execute($params);
         return $stmt->fetchAll();
+    }
+
+    public static function countAll(
+        ?int $schoolId = null,
+        ?string $search = null,
+        ?string $grade = null,
+        ?string $section = null,
+        string $classFilter = ''
+    ): int {
+        $pdo    = getPDO();
+        $where  = ['1=1'];
+        $params = [];
+
+        if ($schoolId) {
+            $where[]  = 'b.school_id = ?';
+            $params[] = $schoolId;
+        }
+        if ($grade) {
+            $where[]  = 'b.grade_level = ?';
+            $params[] = $grade;
+        }
+        if ($section) {
+            $where[]  = 'b.section = ?';
+            $params[] = $section;
+        }
+        if ($search) {
+            $where[]  = '(b.first_name LIKE ? OR b.last_name LIKE ? OR b.lrn LIKE ?)';
+            $like     = "%{$search}%";
+            $params   = array_merge($params, [$like, $like, $like]);
+        }
+
+        if ($classFilter === 'Severely Wasted') {
+            $where[] = 'nr.bmi < 14.0';
+        } elseif ($classFilter === 'Wasted') {
+            $where[] = 'nr.bmi >= 14.0 AND nr.bmi < 16.0';
+        } elseif ($classFilter === 'Normal') {
+            $where[] = 'nr.bmi >= 16.0 AND nr.bmi < 25.0';
+        } elseif ($classFilter === 'Overweight') {
+            $where[] = 'nr.bmi >= 25.0 AND nr.bmi < 30.0';
+        } elseif ($classFilter === 'Obese') {
+            $where[] = 'nr.bmi >= 30.0';
+        }
+
+        $sql  = "
+            SELECT COUNT(*)
+            FROM nutritional_records nr
+            JOIN beneficiaries b ON b.id = nr.beneficiary_id
+            WHERE " . implode(' AND ', $where) . "
+        ";
+        $stmt = $pdo->prepare($sql);
+        $stmt->execute($params);
+        return (int) $stmt->fetchColumn();
     }
 
     public static function getById(int $id): array|false {

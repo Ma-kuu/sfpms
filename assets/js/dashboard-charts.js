@@ -43,12 +43,12 @@
   document.getElementById('chart-next').addEventListener('click', () => { page++; render(); });
   render();
 
-  // BMI Doughnut
-  new Chart(document.getElementById('bmiChart'), {
+  // Attendance Today Doughnut
+  new Chart(document.getElementById('todayChart'), {
     type: 'doughnut',
     data: {
-      labels: D.bmiLabels,
-      datasets: [{ data: D.bmiValues, backgroundColor: D.bmiColors,
+      labels: D.todayLabels,
+      datasets: [{ data: D.todayValues, backgroundColor: ['#2D6A4F', '#DC3545'],
         borderWidth: 2, borderColor: '#fff', hoverOffset: 6 }]
     },
     options: {
