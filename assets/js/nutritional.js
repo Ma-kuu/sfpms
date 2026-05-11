@@ -27,19 +27,24 @@
   }
 
   window.openEditNut = function(row) {
-    document.getElementById('editNutId').value = row.id;
-    document.getElementById('editNutBody').innerHTML = nutFields(row);
-    new bootstrap.Modal(document.getElementById('editNutModal')).show();
+    document.getElementById('editId').value = row.id;
+    document.getElementById('editModule').value = 'nutritional';
+    document.getElementById('editBody').innerHTML = nutFields(row);
+    new bootstrap.Modal(document.getElementById('editModal')).show();
   };
 
   window.openDeleteNut = function(id, name) {
-    document.getElementById('deleteNutId').value = id;
-    document.getElementById('deleteNutName').textContent = name;
-    new bootstrap.Modal(document.getElementById('deleteNutModal')).show();
+    document.getElementById('deleteId').value = id;
+    document.getElementById('deleteModule').value = 'nutritional';
+    document.getElementById('deleteName').textContent = name;
+    new bootstrap.Modal(document.getElementById('deleteModal')).show();
   };
 
-  document.getElementById('addNutModal').addEventListener('show.bs.modal', function() {
-    const b = this.querySelector('.modal-body');
-    if (!b.querySelector('select')) b.innerHTML = nutFields({});
+  document.getElementById('addModal')?.addEventListener('show.bs.modal', function() {
+    if (window.location.pathname.includes('nutritional.php')) {
+        const b = document.getElementById('addBody');
+        document.getElementById('addModule').value = 'nutritional';
+        if (!b.querySelector('select')) b.innerHTML = nutFields({});
+    }
   });
 })();

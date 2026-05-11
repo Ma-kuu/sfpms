@@ -6,11 +6,19 @@ class Auth {
 
     public static function login(string $email, string $password): bool {
         $pdo  = getPDO();
-        $stmt = $pdo->prepare('SELECT * FROM users WHERE email = ? LIMIT 1');
+        $stmt = $pdo->prepare('
+            SELECT u.*, s.status AS school_status 
+            FROM users u
+            LEFT JOIN schools s ON u.school_id = s.id
+            WHERE u.email = ? LIMIT 1
+        ');
         $stmt->execute([$email]);
         $user = $stmt->fetch();
 
         if ($user && $password === $user['password']) {
+            if ($user['school_id'] && $user['school_status'] === 'Inactive') {
+                return false; // Or throw an exception, but returning false works for the current UI
+            }
             session_regenerate_id(true);
             $_SESSION['user_id']     = $user['id'];
             $_SESSION['user_name']   = $user['name'];

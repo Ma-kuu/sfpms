@@ -44,4 +44,9 @@ class School {
     public static function delete(int $id): void {
         getPDO()->prepare('DELETE FROM schools WHERE id = ?')->execute([$id]);
     }
+
+    public static function updateStatus(int $id, string $status): void {
+        $valid = in_array($status, ['Active', 'Inactive']) ? $status : 'Active';
+        getPDO()->prepare('UPDATE schools SET status = ? WHERE id = ?')->execute([$valid, $id]);
+    }
 }

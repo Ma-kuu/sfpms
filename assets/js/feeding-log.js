@@ -29,20 +29,25 @@
   }
 
   window.openEditSession = function(row) {
-    document.getElementById('editSesId').value = row.id;
-    document.getElementById('editSesBody').innerHTML = sessionFields(row);
-    new bootstrap.Modal(document.getElementById('editSessionModal')).show();
+    document.getElementById('editId').value = row.id;
+    document.getElementById('editModule').value = 'feeding_session';
+    document.getElementById('editBody').innerHTML = sessionFields(row);
+    new bootstrap.Modal(document.getElementById('editModal')).show();
   };
 
   window.openDeleteSession = function(id, label) {
-    document.getElementById('deleteSesId').value = id;
-    document.getElementById('deleteSesDate').textContent = label;
-    new bootstrap.Modal(document.getElementById('deleteSesModal')).show();
+    document.getElementById('deleteId').value = id;
+    document.getElementById('deleteModule').value = 'feeding_session';
+    document.getElementById('deleteName').textContent = label;
+    new bootstrap.Modal(document.getElementById('deleteModal')).show();
   };
 
-  document.getElementById('addSessionModal')?.addEventListener('show.bs.modal', function() {
-    const b = this.querySelector('.modal-body');
-    if (!b.querySelector('select[name="meal_type"]')) b.innerHTML = sessionFields({});
+  document.getElementById('addModal')?.addEventListener('show.bs.modal', function() {
+    if (window.location.pathname.includes('feeding_log.php') && !document.querySelector('form[action="feeding_log.php"]')) {
+        const b = document.getElementById('addBody');
+        document.getElementById('addModule').value = 'feeding_session';
+        if (!b.querySelector('select[name="meal_type"]')) b.innerHTML = sessionFields({});
+    }
   });
 
   // Auto-dismiss success banner

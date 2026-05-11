@@ -84,7 +84,7 @@ require_once __DIR__ . '/../includes/header.php';
 <!-- Report Type Selector -->
 <div class="table-wrapper" style="padding:1.5rem;">
   <div class="mb-3">
-    <div class="form-section-label">Generate Report</div>
+    <div style="font-weight:600;font-size:.95rem;">Generate Report</div>
   </div>
   <form method="get" action="reports.php" class="row g-3 align-items-end">
     <div class="col-md-3">
@@ -133,7 +133,7 @@ require_once __DIR__ . '/../includes/header.php';
 <?php if ($type && !empty($reportData)): ?>
 <div style="margin-top:1.5rem;">
   <div class="d-flex align-items-center justify-content-between mb-3 no-print">
-    <h6 style="margin:0;font-weight:700;">
+    <div style="font-weight:600;font-size:.95rem;margin:0;">
       <?php
         $labels = [
             'attendance'  => 'Attendance Summary Report',
@@ -145,7 +145,7 @@ require_once __DIR__ . '/../includes/header.php';
       <span class="text-muted" style="font-weight:400;font-size:.82rem;margin-left:.5rem;">
         <?= $type !== 'inventory' ? "($dateFrom to $dateTo)" : '' ?>
       </span>
-    </h6>
+    </div>
     <button onclick="window.print()" class="btn-outline-custom no-print">
       <i class="bi bi-printer"></i> Print
     </button>

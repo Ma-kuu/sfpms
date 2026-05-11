@@ -56,19 +56,22 @@
   }
 
   window.openEditModal = function(row) {
-    document.getElementById('edit_id').value = row.id;
+    document.getElementById('editId').value = row.id;
+    document.getElementById('editModule').value = 'beneficiary';
     document.getElementById('editBody').innerHTML = renderFields(row);
     new bootstrap.Modal(document.getElementById('editModal')).show();
   };
 
   window.openDeleteModal = function(id, name) {
-    document.getElementById('delete_id').value = id;
-    document.getElementById('delete_name').textContent = name;
+    document.getElementById('deleteId').value = id;
+    document.getElementById('deleteModule').value = 'beneficiary';
+    document.getElementById('deleteName').textContent = name;
     new bootstrap.Modal(document.getElementById('deleteModal')).show();
   };
 
-  document.getElementById('addModal').addEventListener('show.bs.modal', function() {
-    const body = this.querySelector('.modal-body');
+  document.getElementById('addModal')?.addEventListener('show.bs.modal', function() {
+    const body = this.querySelector('#addBody');
+    document.getElementById('addModule').value = 'beneficiary';
     if (!body.querySelector('input[name="lrn"]')) {
       body.innerHTML = renderFields({});
     }

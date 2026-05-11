@@ -23,6 +23,25 @@ $totalBeneficiaries = $isTeacher
     : Beneficiary::countAll($schoolId);
 $totalSessions      = FeedingLog::countSessions($schoolId);
 
+$lowStockCount = 0;
+if (!$isTeacher) {
+    $lowStockCount = Inventory::getLowStockCount($schoolId);
+}
+
+$recheckWhere = $schoolId ? 'AND b.school_id = ' . (int)$schoolId : '';
+if ($isTeacher) {
+    $recheckWhere .= " AND b.grade_level = " . $pdo->quote($teacherGrade)
+                  .  " AND b.section = " . $pdo->quote($teacherSection);
+}
+$needsRecheck = (int)$pdo->query("
+    SELECT COUNT(*) FROM beneficiaries b
+    WHERE b.status = 'Active' {$recheckWhere}
+    AND b.id NOT IN (
+        SELECT beneficiary_id FROM nutritional_records
+        WHERE record_date >= DATE_SUB(CURDATE(), INTERVAL 3 DAY)
+    )
+")->fetchColumn();
+
 // Chart 1 — role-specific
 // SA: beneficiaries per school | School Admin: per grade | Teacher: their section students list
 if ($isSA) {

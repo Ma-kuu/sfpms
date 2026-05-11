@@ -10,6 +10,7 @@ CREATE TABLE schools (
     id          INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
     name        VARCHAR(200) NOT NULL,
     address     VARCHAR(300),
+    status      ENUM('Active','Inactive') NOT NULL DEFAULT 'Active',
     created_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 ) ENGINE=InnoDB;
 
@@ -307,3 +308,21 @@ INSERT INTO nutritional_records (beneficiary_id, record_date, weight_kg, height_
 (19,'2025-05-01',55.0,162.0,73),(20,'2025-05-01',54.0,161.0,73),
 (21,'2025-05-01',60.0,165.0,74),(22,'2025-05-01',61.0,166.0,74),
 (23,'2025-05-01',65.0,170.0,75),(24,'2025-05-01',64.0,169.0,75);
+
+
+-- Notifications Table
+CREATE TABLE IF NOT EXISTS notifications (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  school_id INT NULL,
+  role VARCHAR(50) NULL,
+  user_id INT NULL,
+  type VARCHAR(50) NOT NULL,
+  icon VARCHAR(50) NOT NULL,
+  message TEXT NOT NULL,
+  link VARCHAR(255) NOT NULL,
+  is_read TINYINT(1) DEFAULT 0,
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  KEY (school_id),
+  KEY (user_id),
+  KEY (role)
+);
