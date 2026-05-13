@@ -27,19 +27,24 @@
   }
 
   window.openEditInv = function(row) {
-    document.getElementById('editInvId').value = row.id;
-    document.getElementById('editInvBody').innerHTML = invFields(row);
-    new bootstrap.Modal(document.getElementById('editInvModal')).show();
+    document.getElementById('editId').value = row.id;
+    document.getElementById('editModule').value = 'inventory';
+    document.getElementById('editBody').innerHTML = invFields(row);
+    new bootstrap.Modal(document.getElementById('editModal')).show();
   };
 
   window.openDeleteInv = function(id, name) {
-    document.getElementById('deleteInvId').value = id;
-    document.getElementById('deleteInvName').textContent = name;
-    new bootstrap.Modal(document.getElementById('deleteInvModal')).show();
+    document.getElementById('deleteId').value = id;
+    document.getElementById('deleteModule').value = 'inventory';
+    document.getElementById('deleteName').textContent = name;
+    new bootstrap.Modal(document.getElementById('deleteModal')).show();
   };
 
-  document.getElementById('addInvModal').addEventListener('show.bs.modal', function() {
-    const b = document.getElementById('addInvBody');
-    if (!b.querySelector('input[name="item_name"]')) b.innerHTML = invFields({});
+  document.getElementById('addModal')?.addEventListener('show.bs.modal', function() {
+    if (window.location.pathname.includes('inventory.php')) {
+        const b = document.getElementById('addBody');
+        document.getElementById('addModule').value = 'inventory';
+        if (!b.querySelector('input[name="item_name"]')) b.innerHTML = invFields({});
+    }
   });
 })();

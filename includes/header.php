@@ -3,6 +3,7 @@
 if (session_status() === PHP_SESSION_NONE) session_start();
 
 require_once __DIR__ . '/../classes/Auth.php';
+require_once __DIR__ . '/../includes/helpers.php';
 Auth::check();
 
 $user    = Auth::user();
@@ -16,63 +17,21 @@ $navItems = [
     'inventory'    => ['icon' => 'box-seam-fill',       'label' => 'Inventory',    'roles' => ['super_admin', 'school_admin']],
     'reports'      => ['icon' => 'bar-chart-line-fill', 'label' => 'Reports',      'roles' => []],
     'schools'      => ['icon' => 'building-fill',       'label' => 'Schools',      'roles' => ['super_admin']],
+    'users'        => ['icon' => 'person-badge-fill',   'label' => 'Users',        'roles' => ['super_admin']],
 ];
 
 // Notifications Logic
-require_once __DIR__ . '/../config/db.php';
-require_once __DIR__ . '/../classes/Beneficiary.php';
-require_once __DIR__ . '/../classes/Inventory.php';
+require_once __DIR__ . '/../classes/Notification.php';
 
-$pdo = getPDO();
-$notifs = [];
 $isTeacher = Auth::isTeacher();
 $isSA = Auth::isSuperAdmin();
 $schoolId = $isSA ? null : (int)$user['school_id'];
 
-$flaggedAbsent = Beneficiary::getFlaggedAbsent($schoolId);
-if (count($flaggedAbsent) > 0) {
-    $notifs[] = [
-        'type' => 'danger',
-        'icon' => 'person-x-fill',
-        'text' => count($flaggedAbsent) . ' beneficiar' . (count($flaggedAbsent) > 1 ? 'ies have' : 'y has') . ' missed 3+ sessions.',
-        'link' => 'beneficiaries.php'
-    ];
-}
+// Sync notifications for the current user
+Notification::syncDynamicNotifs($user['id'], $schoolId, $user['role'], $user['grade_level'] ?? null, $user['section'] ?? null);
 
-$recheckWhere = $schoolId ? 'AND b.school_id = ' . (int)$schoolId : '';
-if ($isTeacher) {
-    $recheckWhere .= " AND b.grade_level = " . $pdo->quote($user['grade_level'])
-                  .  " AND b.section = " . $pdo->quote($user['section']);
-}
-$needsRecheck = $pdo->query("
-    SELECT COUNT(*) FROM beneficiaries b
-    WHERE b.status = 'Active' {$recheckWhere}
-    AND b.id NOT IN (
-        SELECT beneficiary_id FROM nutritional_records
-        WHERE record_date >= DATE_SUB(CURDATE(), INTERVAL 3 DAY)
-    )
-")->fetchColumn();
-
-if ($needsRecheck > 0) {
-    $notifs[] = [
-        'type' => 'warning',
-        'icon' => 'bell-fill',
-        'text' => $needsRecheck . ' student' . ($needsRecheck > 1 ? 's need' : ' needs') . ' nutritional re-check.',
-        'link' => 'nutritional.php'
-    ];
-}
-
-if (!$isTeacher) {
-    $lowStockCount = Inventory::getLowStockCount($schoolId);
-    if ($lowStockCount > 0) {
-        $notifs[] = [
-            'type' => 'warning',
-            'icon' => 'exclamation-triangle-fill',
-            'text' => $lowStockCount . ' item' . ($lowStockCount > 1 ? 's are' : ' is') . ' low on stock.',
-            'link' => 'inventory.php'
-        ];
-    }
-}
+// Fetch unread
+$notifs = Notification::getUnread($user['id']);
 $totalNotifs = count($notifs);
 ?>
 <!doctype html>
@@ -142,11 +101,20 @@ $totalNotifs = count($notifs);
             <li><span class="dropdown-item text-muted">No new notifications.</span></li>
           <?php else: ?>
             <?php foreach ($notifs as $n): ?>
-            <li>
-              <a class="dropdown-item d-flex align-items-start py-2" href="<?= $n['link'] ?>" style="white-space: normal;">
-                <i class="bi bi-<?= $n['icon'] ?> text-<?= $n['type'] ?> me-2 mt-1 fs-6"></i>
-                <span><?= htmlspecialchars($n['text']) ?></span>
-              </a>
+            <li id="notif-<?= $n['id'] ?>">
+              <div class="dropdown-item d-flex align-items-start py-2" style="white-space: normal; flex-direction: column;">
+                <div class="d-flex w-100 justify-content-between align-items-center mb-1">
+                  <span style="font-size: 0.7rem; color: #9ca3af;"><?= date('M j, Y g:i A', strtotime($n['created_at'])) ?></span>
+                  <div>
+                    <button onclick="handleNotifAction('read', <?= $n['id'] ?>)" class="btn btn-sm btn-link text-success p-0 me-2" title="Mark as Read"><i class="bi bi-check2-circle fs-6"></i></button>
+                    <button onclick="handleNotifAction('delete', <?= $n['id'] ?>)" class="btn btn-sm btn-link text-danger p-0" title="Delete"><i class="bi bi-trash fs-6"></i></button>
+                  </div>
+                </div>
+                <a href="<?= htmlspecialchars($n['link']) ?>" class="text-decoration-none text-dark d-flex">
+                  <i class="bi bi-<?= htmlspecialchars($n['icon']) ?> text-<?= htmlspecialchars($n['type']) ?> me-2 mt-1 fs-6"></i>
+                  <span><?= htmlspecialchars($n['message']) ?></span>
+                </a>
+              </div>
             </li>
             <?php endforeach; ?>
           <?php endif; ?>
@@ -159,4 +127,16 @@ $totalNotifs = count($notifs);
     </div>
   </div>
   <script src="../assets/js/clock.js"></script>
+  <script>
+    function handleNotifAction(action, id) {
+        fetch('router.php', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+            body: new URLSearchParams({ module: 'notification', action: action, id: id, csrf_token: '<?= csrf_token() ?>' })
+        }).then(() => {
+            const el = document.getElementById('notif-' + id);
+            if (el) el.remove();
+        });
+    }
+  </script>
   <div class="page-body">

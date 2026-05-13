@@ -24,6 +24,10 @@ class School {
         return (int) getPDO()->query('SELECT COUNT(*) FROM schools')->fetchColumn();
     }
 
+    public static function getList(): array {
+        return getPDO()->query('SELECT id, name FROM schools ORDER BY name')->fetchAll();
+    }
+
     public static function getById(int $id): array|false {
         $stmt = getPDO()->prepare('SELECT * FROM schools WHERE id = ?');
         $stmt->execute([$id]);
@@ -43,5 +47,10 @@ class School {
 
     public static function delete(int $id): void {
         getPDO()->prepare('DELETE FROM schools WHERE id = ?')->execute([$id]);
+    }
+
+    public static function updateStatus(int $id, string $status): void {
+        $valid = in_array($status, ['Active', 'Inactive']) ? $status : 'Active';
+        getPDO()->prepare('UPDATE schools SET status = ? WHERE id = ?')->execute([$valid, $id]);
     }
 }

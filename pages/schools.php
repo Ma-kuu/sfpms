@@ -1,56 +1,5 @@
 <?php
-// pages/schools.php  — Super Admin only
-if (session_status() === PHP_SESSION_NONE) session_start();
-require_once __DIR__ . '/../classes/Auth.php';
-require_once __DIR__ . '/../classes/School.php';
-require_once __DIR__ . '/../includes/pagination.php';
-require_once __DIR__ . '/../includes/helpers.php';
-
-Auth::checkRole(['super_admin']);
-
-// Handle POST actions
-$msg = $err = '';
-if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    $action = $_POST['action'] ?? '';
-
-    if ($action === 'add') {
-        $name = trim($_POST['name'] ?? '');
-        $addr = trim($_POST['address'] ?? '');
-        if (!$name) { $err = 'School name is required.'; }
-        else { School::create(['name' => $name, 'address' => $addr]); $msg = 'School added successfully.'; }
-
-    } elseif ($action === 'edit') {
-        $id   = (int)($_POST['id'] ?? 0);
-        $name = trim($_POST['name'] ?? '');
-        $addr = trim($_POST['address'] ?? '');
-        if (!$name || !$id) { $err = 'Invalid data.'; }
-        else { School::update($id, ['name' => $name, 'address' => $addr]); $msg = 'School updated.'; }
-
-    } elseif ($action === 'delete') {
-        $id = (int)($_POST['id'] ?? 0);
-        if ($id) { School::delete($id); $msg = 'School deleted.'; }
-    }
-}
-
-// Pagination & Sort
-$search     = trim($_GET['search'] ?? '');
-$sortBy     = in_array($_GET['sort'] ?? '', ['name','address','beneficiary_count']) ? $_GET['sort'] : 'name';
-$sortDir    = ($_GET['dir'] ?? 'asc') === 'desc' ? 'desc' : 'asc';
-$totalCount = School::countAll();
-$pag        = paginate($totalCount, 20);
-$schools    = School::getAll($pag['page'], $pag['perPage'], $sortBy, $sortDir);
-
-// Simple search filter (PHP-side since list is small)
-if ($search) {
-    $schools = array_filter($schools, fn($s) =>
-        stripos($s['name'], $search) !== false ||
-        stripos($s['address'], $search) !== false
-    );
-}
-
-
-
-$pageTitle = 'Schools';
+require_once __DIR__ . '/../controllers/schools.php';
 require_once __DIR__ . '/../includes/header.php';
 ?>
 
@@ -110,6 +59,7 @@ require_once __DIR__ . '/../includes/header.php';
             Beneficiaries <?= sortIcon('beneficiary_count', $sortBy, $sortDir) ?>
           </a>
         </th>
+        <th class="text-center">Status</th>
         <th class="text-center">Actions</th>
       </tr>
     </thead>
@@ -129,6 +79,11 @@ require_once __DIR__ . '/../includes/header.php';
           </span>
         </td>
         <td class="text-center">
+          <span class="badge <?= ($s['status'] ?? 'Active') === 'Active' ? 'bg-success' : 'bg-danger' ?>">
+            <?= htmlspecialchars($s['status'] ?? 'Active') ?>
+          </span>
+        </td>
+        <td class="text-center">
           <div class="dropdown">
             <button class="btn-dots" data-bs-toggle="dropdown"><i class="bi bi-three-dots"></i></button>
             <ul class="dropdown-menu dropdown-menu-end">
@@ -142,6 +97,18 @@ require_once __DIR__ . '/../includes/header.php';
                    onclick="openEdit(<?= $s['id'] ?>, '<?= addslashes($s['name']) ?>', '<?= addslashes($s['address']) ?>')">
                   <i class="bi bi-pencil me-1"></i> Edit
                 </a>
+              </li>
+              <li>
+                <form method="post" action="router.php" style="display:inline;">
+                  <input type="hidden" name="module" value="school">
+                  <input type="hidden" name="action" value="toggle_status">
+                  <input type="hidden" name="id" value="<?= $s['id'] ?>">
+                  <input type="hidden" name="status" value="<?= ($s['status'] ?? 'Active') === 'Active' ? 'Inactive' : 'Active' ?>">
+                  <?= csrf_field() ?>
+                  <button type="submit" class="dropdown-item">
+                    <i class="bi bi-power me-1"></i> <?= ($s['status'] ?? 'Active') === 'Active' ? 'Disable' : 'Enable' ?>
+                  </button>
+                </form>
               </li>
               <li>
                 <a class="dropdown-item text-danger" href="#"
@@ -165,8 +132,10 @@ require_once __DIR__ . '/../includes/header.php';
 <div class="modal fade" id="addModal" tabindex="-1">
   <div class="modal-dialog">
     <div class="modal-content">
-      <form method="post">
+      <form method="post" action="router.php">
+        <input type="hidden" name="module" value="school">
         <input type="hidden" name="action" value="add">
+        <?= csrf_field() ?>
         <div class="modal-header">
           <h5 class="modal-title"><i class="bi bi-building me-1"></i> Add School</h5>
           <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
@@ -194,9 +163,11 @@ require_once __DIR__ . '/../includes/header.php';
 <div class="modal fade" id="editModal" tabindex="-1">
   <div class="modal-dialog">
     <div class="modal-content">
-      <form method="post">
+      <form method="post" action="router.php">
+        <input type="hidden" name="module" value="school">
         <input type="hidden" name="action" value="edit">
         <input type="hidden" name="id" id="edit-id">
+        <?= csrf_field() ?>
         <div class="modal-header">
           <h5 class="modal-title"><i class="bi bi-pencil me-1"></i> Edit School</h5>
           <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
@@ -224,9 +195,11 @@ require_once __DIR__ . '/../includes/header.php';
 <div class="modal fade" id="deleteModal" tabindex="-1">
   <div class="modal-dialog modal-sm">
     <div class="modal-content">
-      <form method="post">
+      <form method="post" action="router.php">
+        <input type="hidden" name="module" value="school">
         <input type="hidden" name="action" value="delete">
         <input type="hidden" name="id" id="del-id">
+        <?= csrf_field() ?>
         <div class="modal-header" style="background:#DC3545;">
           <h5 class="modal-title">Delete School</h5>
           <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>

@@ -10,6 +10,7 @@ CREATE TABLE schools (
     id          INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
     name        VARCHAR(200) NOT NULL,
     address     VARCHAR(300),
+    status      ENUM('Active','Inactive') NOT NULL DEFAULT 'Active',
     created_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 ) ENGINE=InnoDB;
 
@@ -27,22 +28,31 @@ CREATE TABLE users (
     FOREIGN KEY (school_id) REFERENCES schools(id) ON DELETE SET NULL
 ) ENGINE=InnoDB;
 
--- Beneficiaries
-CREATE TABLE beneficiaries (
+-- Students (identity: who the student is)
+CREATE TABLE students (
+    id               INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    lrn              VARCHAR(12) NOT NULL UNIQUE,
+    first_name       VARCHAR(80) NOT NULL,
+    last_name        VARCHAR(80) NOT NULL,
+    birthdate        DATE NULL,
+    sex              ENUM('Male','Female') NOT NULL,
+    guardian_contact  VARCHAR(20) NULL,
+    created_at       TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+) ENGINE=InnoDB;
+
+-- Enrollments (placement: where the student belongs)
+CREATE TABLE enrollments (
     id          INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
-    lrn         VARCHAR(12) NOT NULL UNIQUE,
-    first_name  VARCHAR(80) NOT NULL,
-    last_name   VARCHAR(80) NOT NULL,
-    birthdate   DATE,
-    sex         ENUM('Male','Female') NOT NULL,
-    grade_level VARCHAR(10) NOT NULL,
-    section     VARCHAR(50),
+    student_id  INT UNSIGNED NOT NULL,
     school_id   INT UNSIGNED NOT NULL,
+    grade_level VARCHAR(10) NOT NULL,
+    section     VARCHAR(50) NULL,
     status      ENUM('Active','Inactive') NOT NULL DEFAULT 'Active',
-    guardian_contact VARCHAR(20) NULL, 
-    last_nutritional_check DATE NULL, 
     created_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (school_id) REFERENCES schools(id) ON DELETE CASCADE
+    FOREIGN KEY (student_id) REFERENCES students(id) ON DELETE CASCADE,
+    FOREIGN KEY (school_id)  REFERENCES schools(id)  ON DELETE CASCADE,
+    KEY idx_school_status (school_id, status),
+    KEY idx_student (student_id)
 ) ENGINE=InnoDB;
 
 -- Feeding Sessions
@@ -66,21 +76,7 @@ CREATE TABLE feeding_attendance (
     present         TINYINT(1) NOT NULL DEFAULT 0,
     UNIQUE KEY uq_session_beneficiary (session_id, beneficiary_id),
     FOREIGN KEY (session_id)     REFERENCES feeding_sessions(id) ON DELETE CASCADE,
-    FOREIGN KEY (beneficiary_id) REFERENCES beneficiaries(id)    ON DELETE CASCADE
-) ENGINE=InnoDB;
-
--- Nutritional Records
-CREATE TABLE nutritional_records (
-    id              INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
-    beneficiary_id  INT UNSIGNED NOT NULL,
-    record_date     DATE NOT NULL,
-    weight_kg       DECIMAL(5,2) NOT NULL,
-    height_cm       DECIMAL(5,2) NOT NULL,
-    bmi             DECIMAL(5,2) GENERATED ALWAYS AS (weight_kg / POW(height_cm / 100, 2)) STORED,
-    recorded_by     INT UNSIGNED,
-    created_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (beneficiary_id) REFERENCES beneficiaries(id) ON DELETE CASCADE,
-    FOREIGN KEY (recorded_by)    REFERENCES users(id) ON DELETE SET NULL
+    FOREIGN KEY (beneficiary_id) REFERENCES enrollments(id)      ON DELETE CASCADE
 ) ENGINE=InnoDB;
 
 -- Inventory
@@ -94,6 +90,50 @@ CREATE TABLE inventory (
     last_updated    TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     FOREIGN KEY (school_id) REFERENCES schools(id) ON DELETE CASCADE
 ) ENGINE=InnoDB;
+
+-- Feeding Session Items (inventory items used per session)
+CREATE TABLE feeding_session_items (
+    id            INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    session_id    INT UNSIGNED NOT NULL,
+    inventory_id  INT UNSIGNED NOT NULL,
+    qty_used      DECIMAL(10,2) NOT NULL,
+    created_at    TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE KEY uq_session_item (session_id, inventory_id),
+    FOREIGN KEY (session_id)   REFERENCES feeding_sessions(id) ON DELETE CASCADE,
+    FOREIGN KEY (inventory_id) REFERENCES inventory(id)        ON DELETE RESTRICT
+) ENGINE=InnoDB;
+
+-- Nutritional Records
+CREATE TABLE nutritional_records (
+    id              INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    beneficiary_id  INT UNSIGNED NOT NULL,
+    record_date     DATE NOT NULL,
+    weight_kg       DECIMAL(5,2) NOT NULL,
+    height_cm       DECIMAL(5,2) NOT NULL,
+    bmi             DECIMAL(5,2) GENERATED ALWAYS AS (weight_kg / POW(height_cm / 100, 2)) STORED,
+    recorded_by     INT UNSIGNED,
+    created_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (beneficiary_id) REFERENCES enrollments(id) ON DELETE CASCADE,
+    FOREIGN KEY (recorded_by)    REFERENCES users(id)       ON DELETE SET NULL
+) ENGINE=InnoDB;
+
+-- Backward-compatible VIEW: existing SELECT queries keep working unchanged
+CREATE VIEW beneficiaries AS
+SELECT
+    e.id,
+    s.lrn,
+    s.first_name,
+    s.last_name,
+    s.birthdate,
+    s.sex,
+    e.grade_level,
+    e.section,
+    e.school_id,
+    e.status,
+    s.guardian_contact,
+    s.created_at
+FROM enrollments e
+JOIN students s ON s.id = e.student_id;
 
 -- ============================================================
 -- SEED DATA — PANABO CITY SCHOOLS
@@ -163,124 +203,158 @@ INSERT INTO schools (id, name, address) VALUES
 (62, 'Lorenzo T. Concepcion Integrated School',               'Panabo City, Davao del Norte');
 
 -- =====================================================
--- SEED: Users (password: password)
+-- SEED: Users (all passwords: "password")
 -- =====================================================
+-- Hash generated via: php -r "echo password_hash('password', PASSWORD_DEFAULT);"
+SET @pw = '$2y$10$cJHIyHYxY.Jv4u7VX47ADuNKL2WhNXyJUERHytPGWXVnpd5nDPmpy';
+
 INSERT INTO users (name, email, password, role, school_id) VALUES
-('Super Administrator', 'admin@sfpms.edu.ph', 'password', 'super_admin', NULL);
+('Super Administrator', 'admin@sfpms.edu.ph', @pw, 'super_admin', NULL);
 
 -- Generate School Admins (1 for each school)
 INSERT INTO users (name, email, password, role, school_id) VALUES
-('Admin School 1', 'admin1@sfpms.edu.ph', 'password', 'school_admin', 1),
-('Admin School 2', 'admin2@sfpms.edu.ph', 'password', 'school_admin', 2),
-('Admin School 3', 'admin3@sfpms.edu.ph', 'password', 'school_admin', 3),
-('Admin School 4', 'admin4@sfpms.edu.ph', 'password', 'school_admin', 4),
-('Admin School 5', 'admin5@sfpms.edu.ph', 'password', 'school_admin', 5),
-('Admin School 6', 'admin6@sfpms.edu.ph', 'password', 'school_admin', 6),
-('Admin School 7', 'admin7@sfpms.edu.ph', 'password', 'school_admin', 7),
-('Admin School 8', 'admin8@sfpms.edu.ph', 'password', 'school_admin', 8),
-('Admin School 9', 'admin9@sfpms.edu.ph', 'password', 'school_admin', 9),
-('Admin School 10', 'admin10@sfpms.edu.ph', 'password', 'school_admin', 10),
-('Admin School 11', 'admin11@sfpms.edu.ph', 'password', 'school_admin', 11),
-('Admin School 12', 'admin12@sfpms.edu.ph', 'password', 'school_admin', 12),
-('Admin School 13', 'admin13@sfpms.edu.ph', 'password', 'school_admin', 13),
-('Admin School 14', 'admin14@sfpms.edu.ph', 'password', 'school_admin', 14),
-('Admin School 15', 'admin15@sfpms.edu.ph', 'password', 'school_admin', 15),
-('Admin School 16', 'admin16@sfpms.edu.ph', 'password', 'school_admin', 16),
-('Admin School 17', 'admin17@sfpms.edu.ph', 'password', 'school_admin', 17),
-('Admin School 18', 'admin18@sfpms.edu.ph', 'password', 'school_admin', 18),
-('Admin School 19', 'admin19@sfpms.edu.ph', 'password', 'school_admin', 19),
-('Admin School 20', 'admin20@sfpms.edu.ph', 'password', 'school_admin', 20),
-('Admin School 21', 'admin21@sfpms.edu.ph', 'password', 'school_admin', 21),
-('Admin School 22', 'admin22@sfpms.edu.ph', 'password', 'school_admin', 22),
-('Admin School 23', 'admin23@sfpms.edu.ph', 'password', 'school_admin', 23),
-('Admin School 24', 'admin24@sfpms.edu.ph', 'password', 'school_admin', 24),
-('Admin School 25', 'admin25@sfpms.edu.ph', 'password', 'school_admin', 25),
-('Admin School 26', 'admin26@sfpms.edu.ph', 'password', 'school_admin', 26),
-('Admin School 27', 'admin27@sfpms.edu.ph', 'password', 'school_admin', 27),
-('Admin School 28', 'admin28@sfpms.edu.ph', 'password', 'school_admin', 28),
-('Admin School 29', 'admin29@sfpms.edu.ph', 'password', 'school_admin', 29),
-('Admin School 30', 'admin30@sfpms.edu.ph', 'password', 'school_admin', 30),
-('Admin School 31', 'admin31@sfpms.edu.ph', 'password', 'school_admin', 31),
-('Admin School 32', 'admin32@sfpms.edu.ph', 'password', 'school_admin', 32),
-('Admin School 33', 'admin33@sfpms.edu.ph', 'password', 'school_admin', 33),
-('Admin School 34', 'admin34@sfpms.edu.ph', 'password', 'school_admin', 34),
-('Admin School 35', 'admin35@sfpms.edu.ph', 'password', 'school_admin', 35),
-('Admin School 36', 'admin36@sfpms.edu.ph', 'password', 'school_admin', 36),
-('Admin School 37', 'admin37@sfpms.edu.ph', 'password', 'school_admin', 37),
-('Admin School 38', 'admin38@sfpms.edu.ph', 'password', 'school_admin', 38),
-('Admin School 39', 'admin39@sfpms.edu.ph', 'password', 'school_admin', 39),
-('Admin School 40', 'admin40@sfpms.edu.ph', 'password', 'school_admin', 40),
-('Admin School 41', 'admin41@sfpms.edu.ph', 'password', 'school_admin', 41),
-('Admin School 42', 'admin42@sfpms.edu.ph', 'password', 'school_admin', 42),
-('Admin School 43', 'admin43@sfpms.edu.ph', 'password', 'school_admin', 43),
-('Admin School 44', 'admin44@sfpms.edu.ph', 'password', 'school_admin', 44),
-('Admin School 45', 'admin45@sfpms.edu.ph', 'password', 'school_admin', 45),
-('Admin School 46', 'admin46@sfpms.edu.ph', 'password', 'school_admin', 46),
-('Admin School 47', 'admin47@sfpms.edu.ph', 'password', 'school_admin', 47),
-('Admin School 48', 'admin48@sfpms.edu.ph', 'password', 'school_admin', 48),
-('Admin School 49', 'admin49@sfpms.edu.ph', 'password', 'school_admin', 49),
-('Admin School 50', 'admin50@sfpms.edu.ph', 'password', 'school_admin', 50),
-('Admin School 51', 'admin51@sfpms.edu.ph', 'password', 'school_admin', 51),
-('Admin School 52', 'admin52@sfpms.edu.ph', 'password', 'school_admin', 52),
-('Admin School 53', 'admin53@sfpms.edu.ph', 'password', 'school_admin', 53),
-('Admin School 54', 'admin54@sfpms.edu.ph', 'password', 'school_admin', 54),
-('Admin School 55', 'admin55@sfpms.edu.ph', 'password', 'school_admin', 55),
-('Admin School 56', 'admin56@sfpms.edu.ph', 'password', 'school_admin', 56),
-('Admin School 57', 'admin57@sfpms.edu.ph', 'password', 'school_admin', 57),
-('Admin School 58', 'admin58@sfpms.edu.ph', 'password', 'school_admin', 58),
-('Admin School 59', 'admin59@sfpms.edu.ph', 'password', 'school_admin', 59),
-('Admin School 60', 'admin60@sfpms.edu.ph', 'password', 'school_admin', 60),
-('Admin School 61', 'admin61@sfpms.edu.ph', 'password', 'school_admin', 61),
-('Admin School 62', 'admin62@sfpms.edu.ph', 'password', 'school_admin', 62);
+('Admin School 1', 'admin1@sfpms.edu.ph', @pw, 'school_admin', 1),
+('Admin School 2', 'admin2@sfpms.edu.ph', @pw, 'school_admin', 2),
+('Admin School 3', 'admin3@sfpms.edu.ph', @pw, 'school_admin', 3),
+('Admin School 4', 'admin4@sfpms.edu.ph', @pw, 'school_admin', 4),
+('Admin School 5', 'admin5@sfpms.edu.ph', @pw, 'school_admin', 5),
+('Admin School 6', 'admin6@sfpms.edu.ph', @pw, 'school_admin', 6),
+('Admin School 7', 'admin7@sfpms.edu.ph', @pw, 'school_admin', 7),
+('Admin School 8', 'admin8@sfpms.edu.ph', @pw, 'school_admin', 8),
+('Admin School 9', 'admin9@sfpms.edu.ph', @pw, 'school_admin', 9),
+('Admin School 10', 'admin10@sfpms.edu.ph', @pw, 'school_admin', 10),
+('Admin School 11', 'admin11@sfpms.edu.ph', @pw, 'school_admin', 11),
+('Admin School 12', 'admin12@sfpms.edu.ph', @pw, 'school_admin', 12),
+('Admin School 13', 'admin13@sfpms.edu.ph', @pw, 'school_admin', 13),
+('Admin School 14', 'admin14@sfpms.edu.ph', @pw, 'school_admin', 14),
+('Admin School 15', 'admin15@sfpms.edu.ph', @pw, 'school_admin', 15),
+('Admin School 16', 'admin16@sfpms.edu.ph', @pw, 'school_admin', 16),
+('Admin School 17', 'admin17@sfpms.edu.ph', @pw, 'school_admin', 17),
+('Admin School 18', 'admin18@sfpms.edu.ph', @pw, 'school_admin', 18),
+('Admin School 19', 'admin19@sfpms.edu.ph', @pw, 'school_admin', 19),
+('Admin School 20', 'admin20@sfpms.edu.ph', @pw, 'school_admin', 20),
+('Admin School 21', 'admin21@sfpms.edu.ph', @pw, 'school_admin', 21),
+('Admin School 22', 'admin22@sfpms.edu.ph', @pw, 'school_admin', 22),
+('Admin School 23', 'admin23@sfpms.edu.ph', @pw, 'school_admin', 23),
+('Admin School 24', 'admin24@sfpms.edu.ph', @pw, 'school_admin', 24),
+('Admin School 25', 'admin25@sfpms.edu.ph', @pw, 'school_admin', 25),
+('Admin School 26', 'admin26@sfpms.edu.ph', @pw, 'school_admin', 26),
+('Admin School 27', 'admin27@sfpms.edu.ph', @pw, 'school_admin', 27),
+('Admin School 28', 'admin28@sfpms.edu.ph', @pw, 'school_admin', 28),
+('Admin School 29', 'admin29@sfpms.edu.ph', @pw, 'school_admin', 29),
+('Admin School 30', 'admin30@sfpms.edu.ph', @pw, 'school_admin', 30),
+('Admin School 31', 'admin31@sfpms.edu.ph', @pw, 'school_admin', 31),
+('Admin School 32', 'admin32@sfpms.edu.ph', @pw, 'school_admin', 32),
+('Admin School 33', 'admin33@sfpms.edu.ph', @pw, 'school_admin', 33),
+('Admin School 34', 'admin34@sfpms.edu.ph', @pw, 'school_admin', 34),
+('Admin School 35', 'admin35@sfpms.edu.ph', @pw, 'school_admin', 35),
+('Admin School 36', 'admin36@sfpms.edu.ph', @pw, 'school_admin', 36),
+('Admin School 37', 'admin37@sfpms.edu.ph', @pw, 'school_admin', 37),
+('Admin School 38', 'admin38@sfpms.edu.ph', @pw, 'school_admin', 38),
+('Admin School 39', 'admin39@sfpms.edu.ph', @pw, 'school_admin', 39),
+('Admin School 40', 'admin40@sfpms.edu.ph', @pw, 'school_admin', 40),
+('Admin School 41', 'admin41@sfpms.edu.ph', @pw, 'school_admin', 41),
+('Admin School 42', 'admin42@sfpms.edu.ph', @pw, 'school_admin', 42),
+('Admin School 43', 'admin43@sfpms.edu.ph', @pw, 'school_admin', 43),
+('Admin School 44', 'admin44@sfpms.edu.ph', @pw, 'school_admin', 44),
+('Admin School 45', 'admin45@sfpms.edu.ph', @pw, 'school_admin', 45),
+('Admin School 46', 'admin46@sfpms.edu.ph', @pw, 'school_admin', 46),
+('Admin School 47', 'admin47@sfpms.edu.ph', @pw, 'school_admin', 47),
+('Admin School 48', 'admin48@sfpms.edu.ph', @pw, 'school_admin', 48),
+('Admin School 49', 'admin49@sfpms.edu.ph', @pw, 'school_admin', 49),
+('Admin School 50', 'admin50@sfpms.edu.ph', @pw, 'school_admin', 50),
+('Admin School 51', 'admin51@sfpms.edu.ph', @pw, 'school_admin', 51),
+('Admin School 52', 'admin52@sfpms.edu.ph', @pw, 'school_admin', 52),
+('Admin School 53', 'admin53@sfpms.edu.ph', @pw, 'school_admin', 53),
+('Admin School 54', 'admin54@sfpms.edu.ph', @pw, 'school_admin', 54),
+('Admin School 55', 'admin55@sfpms.edu.ph', @pw, 'school_admin', 55),
+('Admin School 56', 'admin56@sfpms.edu.ph', @pw, 'school_admin', 56),
+('Admin School 57', 'admin57@sfpms.edu.ph', @pw, 'school_admin', 57),
+('Admin School 58', 'admin58@sfpms.edu.ph', @pw, 'school_admin', 58),
+('Admin School 59', 'admin59@sfpms.edu.ph', @pw, 'school_admin', 59),
+('Admin School 60', 'admin60@sfpms.edu.ph', @pw, 'school_admin', 60),
+('Admin School 61', 'admin61@sfpms.edu.ph', @pw, 'school_admin', 61),
+('Admin School 62', 'admin62@sfpms.edu.ph', @pw, 'school_admin', 62);
 
 -- Teachers (School 1: Elementary, Grades 1-6)
 INSERT INTO users (name, email, password, role, school_id, grade_level, section) VALUES
-('Ana Bautista',    'ana.bautista@sfpms.edu.ph',    'password', 'teacher', 1, 'Grade 1', 'Lily'),
-('Pedro Santiago',  'pedro.santiago@sfpms.edu.ph',  'password', 'teacher', 1, 'Grade 2', 'Dahlia'),
-('Rosa Garcia',     'rosa.garcia@sfpms.edu.ph',     'password', 'teacher', 1, 'Grade 3', 'Sampaguita'),
-('Carlos Flores',   'carlos.flores@sfpms.edu.ph',   'password', 'teacher', 1, 'Grade 4', 'Orchid'),
-('Sofia Torres',    'sofia.torres@sfpms.edu.ph',    'password', 'teacher', 1, 'Grade 5', 'Rose'),
-('Miguel Navarro',  'miguel.navarro@sfpms.edu.ph',  'password', 'teacher', 1, 'Grade 6', 'Tulip');
+('Ana Bautista',    'ana.bautista@sfpms.edu.ph',    @pw, 'teacher', 1, 'Grade 1', 'Lily'),
+('Pedro Santiago',  'pedro.santiago@sfpms.edu.ph',  @pw, 'teacher', 1, 'Grade 2', 'Dahlia'),
+('Rosa Garcia',     'rosa.garcia@sfpms.edu.ph',     @pw, 'teacher', 1, 'Grade 3', 'Sampaguita'),
+('Carlos Flores',   'carlos.flores@sfpms.edu.ph',   @pw, 'teacher', 1, 'Grade 4', 'Orchid'),
+('Sofia Torres',    'sofia.torres@sfpms.edu.ph',    @pw, 'teacher', 1, 'Grade 5', 'Rose'),
+('Miguel Navarro',  'miguel.navarro@sfpms.edu.ph',  @pw, 'teacher', 1, 'Grade 6', 'Tulip');
 
 -- Teachers (School 45: High School, Grades 7-12)
 INSERT INTO users (name, email, password, role, school_id, grade_level, section) VALUES
-('Felipe Dizon',    'felipe.dizon@sfpms.edu.ph',    'password', 'teacher', 45, 'Grade 7',  'Apolinario'),
-('Lorena Gomez',    'lorena.gomez@sfpms.edu.ph',    'password', 'teacher', 45, 'Grade 8',  'Jacinto'),
-('Ricardo Lim',     'ricardo.lim@sfpms.edu.ph',     'password', 'teacher', 45, 'Grade 9',  'Bonifacio'),
-('Bea Alonzo',      'bea.alonzo@sfpms.edu.ph',      'password', 'teacher', 45, 'Grade 10', 'Mabini'),
-('Dingdong Dantes', 'dingdong.dantes@sfpms.edu.ph', 'password', 'teacher', 45, 'Grade 11', 'Rizal'),
-('Marian Rivera',   'marian.rivera@sfpms.edu.ph',   'password', 'teacher', 45, 'Grade 12', 'Quezon');
+('Felipe Dizon',    'felipe.dizon@sfpms.edu.ph',    @pw, 'teacher', 45, 'Grade 7',  'Apolinario'),
+('Lorena Gomez',    'lorena.gomez@sfpms.edu.ph',    @pw, 'teacher', 45, 'Grade 8',  'Jacinto'),
+('Ricardo Lim',     'ricardo.lim@sfpms.edu.ph',     @pw, 'teacher', 45, 'Grade 9',  'Bonifacio'),
+('Bea Alonzo',      'bea.alonzo@sfpms.edu.ph',      @pw, 'teacher', 45, 'Grade 10', 'Mabini'),
+('Dingdong Dantes', 'dingdong.dantes@sfpms.edu.ph', @pw, 'teacher', 45, 'Grade 11', 'Rizal'),
+('Marian Rivera',   'marian.rivera@sfpms.edu.ph',   @pw, 'teacher', 45, 'Grade 12', 'Quezon');
 
 -- =====================================================
--- SEED: Beneficiaries
+-- SEED: Students (identity data)
 -- =====================================================
-INSERT INTO beneficiaries (lrn, first_name, last_name, birthdate, sex, grade_level, section, school_id, status, last_nutritional_check) VALUES
+INSERT INTO students (id, lrn, first_name, last_name, birthdate, sex) VALUES
 -- School 1: Elementary
-('100000000001', 'Juan', 'Dela Cruz', '2016-01-01', 'Male', 'Grade 1', 'Lily', 1, 'Active', '2025-05-01'),
-('100000000002', 'Maria', 'Santos', '2016-02-02', 'Female', 'Grade 1', 'Lily', 1, 'Active', '2025-05-01'),
-('100000000003', 'Jose', 'Rizal', '2015-03-03', 'Male', 'Grade 2', 'Dahlia', 1, 'Active', '2025-05-01'),
-('100000000004', 'Andres', 'Bonifacio', '2015-04-04', 'Male', 'Grade 2', 'Dahlia', 1, 'Active', '2025-05-01'),
-('100000000005', 'Emilio', 'Aguinaldo', '2014-05-05', 'Male', 'Grade 3', 'Sampaguita', 1, 'Active', '2025-05-01'),
-('100000000006', 'Apolinario', 'Mabini', '2014-06-06', 'Male', 'Grade 3', 'Sampaguita', 1, 'Active', '2025-05-01'),
-('100000000007', 'Melchora', 'Aquino', '2013-07-07', 'Female', 'Grade 4', 'Orchid', 1, 'Active', '2025-05-01'),
-('100000000008', 'Gabriela', 'Silang', '2013-08-08', 'Female', 'Grade 4', 'Orchid', 1, 'Active', '2025-05-01'),
-('100000000009', 'Lapu', 'Lapu', '2012-09-09', 'Male', 'Grade 5', 'Rose', 1, 'Active', '2025-05-01'),
-('100000000010', 'Teresa', 'Magbanua', '2012-10-10', 'Female', 'Grade 5', 'Rose', 1, 'Active', '2025-05-01'),
-('100000000011', 'Diego', 'Silang', '2011-11-11', 'Male', 'Grade 6', 'Tulip', 1, 'Active', '2025-05-01'),
-('100000000012', 'Gregoria', 'De Jesus', '2011-12-12', 'Female', 'Grade 6', 'Tulip', 1, 'Active', '2025-05-01'),
+(1,  '100000000001', 'Juan',       'Dela Cruz',     '2016-01-01', 'Male'),
+(2,  '100000000002', 'Maria',      'Santos',        '2016-02-02', 'Female'),
+(3,  '100000000003', 'Jose',       'Rizal',         '2015-03-03', 'Male'),
+(4,  '100000000004', 'Andres',     'Bonifacio',     '2015-04-04', 'Male'),
+(5,  '100000000005', 'Emilio',     'Aguinaldo',     '2014-05-05', 'Male'),
+(6,  '100000000006', 'Apolinario', 'Mabini',        '2014-06-06', 'Male'),
+(7,  '100000000007', 'Melchora',   'Aquino',        '2013-07-07', 'Female'),
+(8,  '100000000008', 'Gabriela',   'Silang',        '2013-08-08', 'Female'),
+(9,  '100000000009', 'Lapu',       'Lapu',          '2012-09-09', 'Male'),
+(10, '100000000010', 'Teresa',     'Magbanua',      '2012-10-10', 'Female'),
+(11, '100000000011', 'Diego',      'Silang',        '2011-11-11', 'Male'),
+(12, '100000000012', 'Gregoria',   'De Jesus',      '2011-12-12', 'Female'),
 -- School 45: High School
-('450000000001', 'Antonio', 'Luna', '2010-01-01', 'Male', 'Grade 7', 'Apolinario', 45, 'Active', '2025-05-01'),
-('450000000002', 'Juan', 'Luna', '2010-02-02', 'Male', 'Grade 7', 'Apolinario', 45, 'Active', '2025-05-01'),
-('450000000003', 'Marcelo', 'Del Pilar', '2009-03-03', 'Male', 'Grade 8', 'Jacinto', 45, 'Active', '2025-05-01'),
-('450000000004', 'Graciano', 'Lopez Jaena', '2009-04-04', 'Male', 'Grade 8', 'Jacinto', 45, 'Active', '2025-05-01'),
-('450000000005', 'Miguel', 'Malvar', '2008-05-05', 'Male', 'Grade 9', 'Bonifacio', 45, 'Active', '2025-05-01'),
-('450000000006', 'Vicente', 'Lim', '2008-06-06', 'Male', 'Grade 9', 'Bonifacio', 45, 'Active', '2025-05-01'),
-('450000000007', 'Josefa', 'Llanes Escoda', '2007-07-07', 'Female', 'Grade 10', 'Mabini', 45, 'Active', '2025-05-01'),
-('450000000008', 'Vicente', 'Lukban', '2007-08-08', 'Male', 'Grade 10', 'Mabini', 45, 'Active', '2025-05-01'),
-('450000000009', 'Macario', 'Sakay', '2006-09-09', 'Male', 'Grade 11', 'Rizal', 45, 'Active', '2025-05-01'),
-('450000000010', 'Artemio', 'Ricarte', '2006-10-10', 'Male', 'Grade 11', 'Rizal', 45, 'Active', '2025-05-01'),
-('450000000011', 'Leon', 'Kilat', '2005-11-11', 'Male', 'Grade 12', 'Quezon', 45, 'Active', '2025-05-01'),
-('450000000012', 'Francisco', 'Dagohoy', '2005-12-12', 'Male', 'Grade 12', 'Quezon', 45, 'Active', '2025-05-01');
+(13, '450000000001', 'Antonio',    'Luna',          '2010-01-01', 'Male'),
+(14, '450000000002', 'Juan',       'Luna',          '2010-02-02', 'Male'),
+(15, '450000000003', 'Marcelo',    'Del Pilar',     '2009-03-03', 'Male'),
+(16, '450000000004', 'Graciano',   'Lopez Jaena',   '2009-04-04', 'Male'),
+(17, '450000000005', 'Miguel',     'Malvar',        '2008-05-05', 'Male'),
+(18, '450000000006', 'Vicente',    'Lim',           '2008-06-06', 'Male'),
+(19, '450000000007', 'Josefa',     'Llanes Escoda', '2007-07-07', 'Female'),
+(20, '450000000008', 'Vicente',    'Lukban',        '2007-08-08', 'Male'),
+(21, '450000000009', 'Macario',    'Sakay',         '2006-09-09', 'Male'),
+(22, '450000000010', 'Artemio',    'Ricarte',       '2006-10-10', 'Male'),
+(23, '450000000011', 'Leon',       'Kilat',         '2005-11-11', 'Male'),
+(24, '450000000012', 'Francisco',  'Dagohoy',       '2005-12-12', 'Male');
+
+-- =====================================================
+-- SEED: Enrollments (placement data — IDs match old beneficiary IDs)
+-- =====================================================
+INSERT INTO enrollments (id, student_id, school_id, grade_level, section, status) VALUES
+-- School 1: Elementary
+(1,  1,  1,  'Grade 1', 'Lily',        'Active'),
+(2,  2,  1,  'Grade 1', 'Lily',        'Active'),
+(3,  3,  1,  'Grade 2', 'Dahlia',      'Active'),
+(4,  4,  1,  'Grade 2', 'Dahlia',      'Active'),
+(5,  5,  1,  'Grade 3', 'Sampaguita',  'Active'),
+(6,  6,  1,  'Grade 3', 'Sampaguita',  'Active'),
+(7,  7,  1,  'Grade 4', 'Orchid',      'Active'),
+(8,  8,  1,  'Grade 4', 'Orchid',      'Active'),
+(9,  9,  1,  'Grade 5', 'Rose',        'Active'),
+(10, 10, 1,  'Grade 5', 'Rose',        'Active'),
+(11, 11, 1,  'Grade 6', 'Tulip',       'Active'),
+(12, 12, 1,  'Grade 6', 'Tulip',       'Active'),
+-- School 45: High School
+(13, 13, 45, 'Grade 7',  'Apolinario', 'Active'),
+(14, 14, 45, 'Grade 7',  'Apolinario', 'Active'),
+(15, 15, 45, 'Grade 8',  'Jacinto',    'Active'),
+(16, 16, 45, 'Grade 8',  'Jacinto',    'Active'),
+(17, 17, 45, 'Grade 9',  'Bonifacio',  'Active'),
+(18, 18, 45, 'Grade 9',  'Bonifacio',  'Active'),
+(19, 19, 45, 'Grade 10', 'Mabini',     'Active'),
+(20, 20, 45, 'Grade 10', 'Mabini',     'Active'),
+(21, 21, 45, 'Grade 11', 'Rizal',      'Active'),
+(22, 22, 45, 'Grade 11', 'Rizal',      'Active'),
+(23, 23, 45, 'Grade 12', 'Quezon',     'Active'),
+(24, 24, 45, 'Grade 12', 'Quezon',     'Active');
 
 -- =====================================================
 -- SEED: Inventory
@@ -307,3 +381,21 @@ INSERT INTO nutritional_records (beneficiary_id, record_date, weight_kg, height_
 (19,'2025-05-01',55.0,162.0,73),(20,'2025-05-01',54.0,161.0,73),
 (21,'2025-05-01',60.0,165.0,74),(22,'2025-05-01',61.0,166.0,74),
 (23,'2025-05-01',65.0,170.0,75),(24,'2025-05-01',64.0,169.0,75);
+
+
+-- Notifications Table
+CREATE TABLE IF NOT EXISTS notifications (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  school_id INT NULL,
+  role VARCHAR(50) NULL,
+  user_id INT NULL,
+  type VARCHAR(50) NOT NULL,
+  icon VARCHAR(50) NOT NULL,
+  message TEXT NOT NULL,
+  link VARCHAR(255) NOT NULL,
+  is_read TINYINT(1) DEFAULT 0,
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  KEY (school_id),
+  KEY (user_id),
+  KEY (role)
+);

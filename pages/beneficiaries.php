@@ -1,70 +1,5 @@
 <?php
-// pages/beneficiaries.php
-if (session_status() === PHP_SESSION_NONE) session_start();
-require_once __DIR__ . '/../classes/Auth.php';
-require_once __DIR__ . '/../classes/Beneficiary.php';
-require_once __DIR__ . '/../config/db.php';
-require_once __DIR__ . '/../includes/helpers.php';
-require_once __DIR__ . '/../includes/pagination.php';
-Auth::check();
-
-$user      = Auth::user();
-$isSA      = Auth::isSuperAdmin();
-$isTeacher = Auth::isTeacher();
-$schoolId  = $isSA ? null : (int)$user['school_id'];
-
-// POST actions
-$action = $_POST['action'] ?? $_GET['action'] ?? '';
-
-if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-
-    if ($action === 'add' || $action === 'edit') {
-        $data = [
-            'lrn'         => trim($_POST['lrn'] ?? ''),
-            'first_name'  => trim($_POST['first_name'] ?? ''),
-            'last_name'   => trim($_POST['last_name'] ?? ''),
-            'birthdate'   => $_POST['birthdate'] ?? '',
-            'sex'         => $_POST['sex'] ?? 'Male',
-            'grade_level' => $isTeacher ? $user['grade_level'] : trim($_POST['grade_level'] ?? ''),
-            'section'     => $isTeacher ? $user['section'] : trim($_POST['section'] ?? ''),
-            'school_id'   => $isSA ? (int)$_POST['school_id'] : $schoolId,
-            'status'      => $_POST['status'] ?? 'Active',
-        ];
-        if ($action === 'add') {
-            Beneficiary::create($data);
-        } else {
-            Beneficiary::update((int)$_POST['id'], $data);
-        }
-    }
-
-    if ($action === 'delete') {
-        Beneficiary::delete((int)$_POST['id']);
-    }
-
-    header('Location: beneficiaries.php');
-    exit;
-}
-
-// Filters — teachers locked to their grade + section
-$search    = trim($_GET['search'] ?? '');
-$grade     = $isTeacher ? $user['grade_level'] : trim($_GET['grade'] ?? '');
-$section   = $isTeacher ? $user['section'] : null;
-$filterSch = $isSA ? (($_GET['school_id'] ?? '') ?: null) : $schoolId;
-
-$totalCount = Beneficiary::countAll($filterSch, $grade ?: null, $search ?: null, $section);
-$pag        = paginate($totalCount, 20);
-
-$sortBy  = in_array($_GET['sort'] ?? '', ['lrn', 'last_name', 'school_name', 'grade_level', 'status']) ? $_GET['sort'] : 'last_name';
-$sortDir = ($_GET['dir'] ?? 'asc') === 'desc' ? 'desc' : 'asc';
-
-$rows   = Beneficiary::getAll($filterSch, $grade ?: null, $search ?: null, $section, $pag['page'], $pag['perPage'], $sortBy, $sortDir);
-$grades = ['Grade 1', 'Grade 2', 'Grade 3', 'Grade 4', 'Grade 5', 'Grade 6', 'Grade 7', 'Grade 8', 'Grade 9', 'Grade 10', 'Grade 11', 'Grade 12'];
-
-// Schools for dropdowns
-$pdo     = getPDO();
-$schools = $pdo->query('SELECT id, name FROM schools ORDER BY name')->fetchAll();
-
-$pageTitle = 'Beneficiaries';
+require_once __DIR__ . '/../controllers/beneficiaries.php';
 require_once __DIR__ . '/../includes/header.php';
 ?>
 
@@ -125,6 +60,7 @@ require_once __DIR__ . '/../includes/header.php';
               Grade <?= sortIcon('grade_level', $sortBy, $sortDir) ?>
             </a>
           </th>
+          <th class="text-center">Section</th>
           <th class="text-center">
             <a href="<?= sortUrl('status', $sortBy, $sortDir) ?>" class="text-decoration-none text-inherit">
               Status <?= sortIcon('status', $sortBy, $sortDir) ?>
@@ -144,6 +80,9 @@ require_once __DIR__ . '/../includes/header.php';
           <td style="font-size:.82rem;"><?= htmlspecialchars($r['school_name']) ?></td>
           <td class="text-center">
             <span class="status-badge badge-active"><?= htmlspecialchars($r['grade_level']) ?></span>
+          </td>
+          <td class="text-center" style="font-size:.85rem;">
+            <?= htmlspecialchars($r['section']) ?>
           </td>
           <td class="text-center">
             <span class="status-badge <?= $r['status'] === 'Active' ? 'badge-active' : 'badge-inactive' ?>">
@@ -183,81 +122,7 @@ require_once __DIR__ . '/../includes/header.php';
   </div>
 </div>
 
-<!-- Add Modal -->
-<div class="modal fade" id="addModal" tabindex="-1" aria-labelledby="addModalLabel">
-  <div class="modal-dialog modal-lg modal-dialog-centered">
-    <div class="modal-content">
-      <div class="modal-header">
-        <h5 class="modal-title" id="addModalLabel"><i class="bi bi-person-plus-fill me-2"></i>Add Beneficiary</h5>
-        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
-      </div>
-      <form method="post" action="beneficiaries.php">
-        <input type="hidden" name="action" value="add">
-        <div class="modal-body"></div>
-        <div class="modal-footer">
-          <button type="button" class="btn-outline-custom" data-bs-dismiss="modal">Cancel</button>
-          <button type="submit" id="btn-add-beneficiary" class="btn-primary-custom">
-            <i class="bi bi-check-lg"></i> Save Beneficiary
-          </button>
-        </div>
-      </form>
-    </div>
-  </div>
-</div>
-
-<!-- Edit Modal -->
-<div class="modal fade" id="editModal" tabindex="-1" aria-labelledby="editModalLabel">
-  <div class="modal-dialog modal-lg modal-dialog-centered">
-    <div class="modal-content">
-      <div class="modal-header">
-        <h5 class="modal-title" id="editModalLabel"><i class="bi bi-pencil-fill me-2"></i>Edit Beneficiary</h5>
-        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
-      </div>
-      <form method="post" action="beneficiaries.php" id="editForm">
-        <input type="hidden" name="action" value="edit">
-        <input type="hidden" name="id" id="edit_id">
-        <div class="modal-body" id="editBody"></div>
-        <div class="modal-footer">
-          <button type="button" class="btn-outline-custom" data-bs-dismiss="modal">Cancel</button>
-          <button type="submit" id="btn-save-beneficiary" class="btn-primary-custom">
-            <i class="bi bi-check-lg"></i> Update Beneficiary
-          </button>
-        </div>
-      </form>
-    </div>
-  </div>
-</div>
-
-<!-- Delete Confirm Modal -->
-<div class="modal fade" id="deleteModal" tabindex="-1" aria-labelledby="deleteModalLabel">
-  <div class="modal-dialog modal-dialog-centered" style="max-width:420px;">
-    <div class="modal-content">
-      <div class="modal-header" style="background:#DC3545;">
-        <h5 class="modal-title" id="deleteModalLabel" style="color:#fff;">
-          <i class="bi bi-trash-fill me-2"></i>Delete Beneficiary
-        </h5>
-        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
-      </div>
-      <form method="post" action="beneficiaries.php">
-        <input type="hidden" name="action" value="delete">
-        <input type="hidden" name="id" id="delete_id">
-        <div class="modal-body" style="padding:1.25rem;">
-          <p style="margin:0;font-size:.9rem;">
-            Are you sure you want to delete <strong id="delete_name"></strong>?
-            This action cannot be undone.
-          </p>
-        </div>
-        <div class="modal-footer">
-          <button type="button" class="btn-outline-custom" data-bs-dismiss="modal">Cancel</button>
-          <button type="submit" id="btn-confirm-delete-beneficiary"
-                  class="btn-primary-custom" style="background:#DC3545;">
-            <i class="bi bi-trash"></i> Delete
-          </button>
-        </div>
-      </form>
-    </div>
-  </div>
-</div>
+<?php require_once __DIR__ . '/../includes/modals.php'; ?>
 
 <script>
 window.pageData = {

@@ -1,90 +1,12 @@
 <?php
-// pages/reports.php
-if (session_status() === PHP_SESSION_NONE) session_start();
-require_once __DIR__ . '/../classes/Auth.php';
-require_once __DIR__ . '/../config/db.php';
-Auth::check();
-
-$user      = Auth::user();
-$isSA      = Auth::isSuperAdmin();
-$isTeacher = Auth::isTeacher();
-$schoolId  = $isSA ? null : (int)$user['school_id'];
-$pdo      = getPDO();
-$schools  = $pdo->query('SELECT id, name FROM schools ORDER BY name')->fetchAll();
-
-$type     = $_GET['type']      ?? '';
-$schFil   = $isSA ? (($_GET['school_id'] ?? '') ?: null) : $schoolId;
-$dateFrom = $_GET['date_from'] ?? date('Y-m-01');
-$dateTo   = $_GET['date_to']   ?? date('Y-m-d');
-
-$reportData = [];
-
-if ($type === 'attendance' && $dateFrom && $dateTo) {
-    $w = $schFil ? 'AND fs.school_id = ?' : '';
-    $p = $schFil ? [$dateFrom, $dateTo, $schFil] : [$dateFrom, $dateTo];
-    $stmt = $pdo->prepare("
-        SELECT
-            CONCAT(b.first_name,' ',b.last_name) AS full_name,
-            b.lrn, b.grade_level,
-            s.name AS school_name,
-            COUNT(fa.id) AS total_sessions,
-            SUM(fa.present) AS total_present,
-            (COUNT(fa.id) - SUM(fa.present)) AS total_absent
-        FROM beneficiaries b
-        JOIN schools s ON s.id = b.school_id
-        JOIN feeding_attendance fa ON fa.beneficiary_id = b.id
-        JOIN feeding_sessions fs ON fs.id = fa.session_id
-            AND fs.session_date BETWEEN ? AND ?
-        WHERE b.status = 'Active' {$w}
-        GROUP BY b.id
-        ORDER BY s.name, b.last_name
-    ");
-    $stmt->execute($p);
-    $reportData = $stmt->fetchAll();
-}
-
-if ($type === 'nutritional' && $dateFrom && $dateTo) {
-    $w = $schFil ? 'AND b.school_id = ?' : '';
-    $p = $schFil ? [$dateFrom, $dateTo, $schFil] : [$dateFrom, $dateTo];
-    $stmt = $pdo->prepare("
-        SELECT
-            CONCAT(b.first_name,' ',b.last_name) AS full_name,
-            b.lrn, b.grade_level,
-            s.name AS school_name,
-            nr.record_date, nr.weight_kg, nr.height_cm, nr.bmi
-        FROM nutritional_records nr
-        JOIN beneficiaries b ON b.id = nr.beneficiary_id
-        JOIN schools s ON s.id = b.school_id
-        WHERE nr.record_date BETWEEN ? AND ? {$w}
-        ORDER BY s.name, b.last_name
-    ");
-    $stmt->execute($p);
-    $reportData = $stmt->fetchAll();
-}
-
-if ($type === 'inventory') {
-    $w = $schFil ? 'WHERE i.school_id = ?' : '';
-    $p = $schFil ? [$schFil] : [];
-    $stmt = $pdo->prepare("
-        SELECT i.*, s.name AS school_name,
-               IF(i.quantity <= i.low_stock_threshold,1,0) AS is_low
-        FROM inventory i
-        JOIN schools s ON s.id = i.school_id
-        {$w}
-        ORDER BY s.name, i.item_name
-    ");
-    $stmt->execute($p);
-    $reportData = $stmt->fetchAll();
-}
-
-$pageTitle = 'Reports';
+require_once __DIR__ . '/../controllers/reports.php';
 require_once __DIR__ . '/../includes/header.php';
 ?>
 
 <!-- Report Type Selector -->
 <div class="table-wrapper" style="padding:1.5rem;">
   <div class="mb-3">
-    <div class="form-section-label">Generate Report</div>
+    <div style="font-weight:600;font-size:.95rem;">Generate Report</div>
   </div>
   <form method="get" action="reports.php" class="row g-3 align-items-end">
     <div class="col-md-3">
@@ -133,7 +55,7 @@ require_once __DIR__ . '/../includes/header.php';
 <?php if ($type && !empty($reportData)): ?>
 <div style="margin-top:1.5rem;">
   <div class="d-flex align-items-center justify-content-between mb-3 no-print">
-    <h6 style="margin:0;font-weight:700;">
+    <div style="font-weight:600;font-size:.95rem;margin:0;">
       <?php
         $labels = [
             'attendance'  => 'Attendance Summary Report',
@@ -145,7 +67,7 @@ require_once __DIR__ . '/../includes/header.php';
       <span class="text-muted" style="font-weight:400;font-size:.82rem;margin-left:.5rem;">
         <?= $type !== 'inventory' ? "($dateFrom to $dateTo)" : '' ?>
       </span>
-    </h6>
+    </div>
     <button onclick="window.print()" class="btn-outline-custom no-print">
       <i class="bi bi-printer"></i> Print
     </button>

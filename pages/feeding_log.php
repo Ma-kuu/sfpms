@@ -1,76 +1,5 @@
 <?php
-// pages/feeding_log.php
-if (session_status() === PHP_SESSION_NONE) session_start();
-require_once __DIR__ . '/../classes/Auth.php';
-require_once __DIR__ . '/../classes/FeedingLog.php';
-require_once __DIR__ . '/../config/db.php';
-require_once __DIR__ . '/../includes/helpers.php';
-require_once __DIR__ . '/../includes/pagination.php';
-Auth::check();
-
-$user     = Auth::user();
-$isSA     = Auth::isSuperAdmin();
-$schoolId = $isSA ? null : (int)$user['school_id'];
-$pdo      = getPDO();
-$schools  = $pdo->query('SELECT id, name FROM schools ORDER BY name')->fetchAll();
-
-$action = $_POST['action'] ?? $_GET['action'] ?? '';
-
-// Attendance form submission
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && $action === 'save_attendance') {
-    $sessionId  = (int)$_POST['session_id'];
-    $presentIds = array_map('intval', $_POST['present'] ?? []);
-    $targetIds  = array_map('intval', $_POST['target_ids'] ?? []);
-    FeedingLog::saveAttendance($sessionId, $presentIds, $targetIds);
-    header('Location: feeding_log.php?msg=saved');
-    exit;
-}
-
-// Session CRUD
-if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    if ($action === 'add') {
-        FeedingLog::createSession([
-            'school_id'    => $isSA ? (int)$_POST['school_id'] : $schoolId,
-            'session_date' => $_POST['session_date'],
-            'meal_type'    => $_POST['meal_type'],
-            'remarks'      => trim($_POST['remarks'] ?? ''),
-            'created_by'   => $user['id'],
-        ]);
-    } elseif ($action === 'edit') {
-        FeedingLog::updateSession((int)$_POST['id'], [
-            'school_id'    => $isSA ? (int)$_POST['school_id'] : $schoolId,
-            'session_date' => $_POST['session_date'],
-            'meal_type'    => $_POST['meal_type'],
-            'remarks'      => trim($_POST['remarks'] ?? ''),
-        ]);
-    } elseif ($action === 'delete') {
-        FeedingLog::deleteSession((int)$_POST['id']);
-    }
-    header('Location: feeding_log.php');
-    exit;
-}
-
-// Attendance view
-$attendanceView = null;
-$attendance     = [];
-if (isset($_GET['session_id'])) {
-    $sid            = (int)$_GET['session_id'];
-    $attendanceView = FeedingLog::getSessionById($sid);
-    
-    $teacherGrade   = Auth::isTeacher() ? $user['grade_level'] : null;
-    $teacherSection = Auth::isTeacher() ? $user['section'] : null;
-    $attendance     = FeedingLog::getAttendanceForSession($sid, $teacherGrade, $teacherSection);
-}
-
-$totalCount = FeedingLog::countSessions($schoolId);
-$pag = paginate($totalCount, 15);
-
-$sortBy  = in_array($_GET['sort'] ?? '', ['session_date', 'school_name', 'meal_type', 'present_count']) ? $_GET['sort'] : 'session_date';
-$sortDir = ($_GET['dir'] ?? 'desc') === 'asc' ? 'asc' : 'desc'; // Default DESC for dates
-
-$sessions  = FeedingLog::getSessions($schoolId, $pag['page'], $pag['perPage'], $sortBy, $sortDir);
-
-$pageTitle = 'Feeding Log';
+require_once __DIR__ . '/../controllers/feeding_log.php';
 require_once __DIR__ . '/../includes/header.php';
 ?>
 
@@ -98,9 +27,11 @@ require_once __DIR__ . '/../includes/header.php';
         </div>
       </div>
     </div>
-    <form method="post" action="feeding_log.php">
+    <form method="post" action="router.php">
+      <input type="hidden" name="module" value="attendance">
       <input type="hidden" name="action" value="save_attendance">
       <input type="hidden" name="session_id" value="<?= $attendanceView['id'] ?>">
+      <?= csrf_field() ?>
       <div style="padding:.75rem 1rem;">
         <div class="row g-2">
           <?php foreach ($attendance as $pupil): ?>
@@ -222,76 +153,7 @@ require_once __DIR__ . '/../includes/header.php';
 </div>
 <?php endif; ?>
 
-<!-- Add Session Modal -->
-<div class="modal fade" id="addSessionModal" tabindex="-1">
-  <div class="modal-dialog modal-dialog-centered">
-    <div class="modal-content">
-      <div class="modal-header">
-        <h5 class="modal-title"><i class="bi bi-cup-hot-fill me-2"></i>Add Feeding Session</h5>
-        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
-      </div>
-      <form method="post" action="feeding_log.php">
-        <input type="hidden" name="action" value="add">
-        <div class="modal-body"></div>
-        <div class="modal-footer">
-          <button type="button" class="btn-outline-custom" data-bs-dismiss="modal">Cancel</button>
-          <button type="submit" id="btn-add-session" class="btn-primary-custom">
-            <i class="bi bi-check-lg"></i> Save Session
-          </button>
-        </div>
-      </form>
-    </div>
-  </div>
-</div>
-
-<!-- Edit Session Modal -->
-<div class="modal fade" id="editSessionModal" tabindex="-1">
-  <div class="modal-dialog modal-dialog-centered">
-    <div class="modal-content">
-      <div class="modal-header">
-        <h5 class="modal-title"><i class="bi bi-pencil-fill me-2"></i>Edit Session</h5>
-        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
-      </div>
-      <form method="post" action="feeding_log.php">
-        <input type="hidden" name="action" value="edit">
-        <input type="hidden" name="id" id="editSesId">
-        <div class="modal-body" id="editSesBody"></div>
-        <div class="modal-footer">
-          <button type="button" class="btn-outline-custom" data-bs-dismiss="modal">Cancel</button>
-          <button type="submit" id="btn-save-session" class="btn-primary-custom">
-            <i class="bi bi-check-lg"></i> Update
-          </button>
-        </div>
-      </form>
-    </div>
-  </div>
-</div>
-
-<!-- Delete Session Modal -->
-<div class="modal fade" id="deleteSesModal" tabindex="-1">
-  <div class="modal-dialog modal-dialog-centered" style="max-width:420px;">
-    <div class="modal-content">
-      <div class="modal-header" style="background:#DC3545;">
-        <h5 class="modal-title" style="color:#fff;"><i class="bi bi-trash-fill me-2"></i>Delete Session</h5>
-        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
-      </div>
-      <form method="post" action="feeding_log.php">
-        <input type="hidden" name="action" value="delete">
-        <input type="hidden" name="id" id="deleteSesId">
-        <div class="modal-body">
-          <p style="margin:0;font-size:.9rem;">Delete session on <strong id="deleteSesDate"></strong>? All attendance records will also be removed.</p>
-        </div>
-        <div class="modal-footer">
-          <button type="button" class="btn-outline-custom" data-bs-dismiss="modal">Cancel</button>
-          <button type="submit" id="btn-confirm-delete-session"
-                  class="btn-primary-custom" style="background:#DC3545;">
-            <i class="bi bi-trash"></i> Delete
-          </button>
-        </div>
-      </form>
-    </div>
-  </div>
-</div>
+<?php require_once __DIR__ . '/../includes/modals.php'; ?>
 
 <script>
 window.pageData = {

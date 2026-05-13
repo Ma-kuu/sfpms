@@ -73,40 +73,72 @@ class Beneficiary {
     }
 
     public static function create(array $data): int {
-        $pdo  = getPDO();
+        $pdo = getPDO();
+
+        // Find existing student by LRN, or create new
+        $stmt = $pdo->prepare('SELECT id FROM students WHERE lrn = ?');
+        $stmt->execute([$data['lrn']]);
+        $student = $stmt->fetch();
+
+        if ($student) {
+            $studentId = $student['id'];
+        } else {
+            $stmt = $pdo->prepare(
+                'INSERT INTO students (lrn, first_name, last_name, birthdate, sex)
+                 VALUES (?, ?, ?, ?, ?)'
+            );
+            $stmt->execute([
+                $data['lrn'], $data['first_name'], $data['last_name'],
+                $data['birthdate'], $data['sex']
+            ]);
+            $studentId = (int) $pdo->lastInsertId();
+        }
+
+        // Create enrollment
         $stmt = $pdo->prepare(
-            'INSERT INTO beneficiaries
-             (lrn, first_name, last_name, birthdate, sex, grade_level, section, school_id, status)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)'
+            'INSERT INTO enrollments (student_id, school_id, grade_level, section, status)
+             VALUES (?, ?, ?, ?, ?)'
         );
         $stmt->execute([
-            $data['lrn'], $data['first_name'], $data['last_name'],
-            $data['birthdate'], $data['sex'], $data['grade_level'],
-            $data['section'], $data['school_id'], $data['status'] ?? 'Active',
+            $studentId, $data['school_id'], $data['grade_level'],
+            $data['section'], $data['status'] ?? 'Active'
         ]);
         return (int) $pdo->lastInsertId();
     }
 
     public static function update(int $id, array $data): void {
-        $pdo  = getPDO();
+        $pdo = getPDO();
+
+        // Get student_id from enrollment
+        $stmt = $pdo->prepare('SELECT student_id FROM enrollments WHERE id = ?');
+        $stmt->execute([$id]);
+        $enrollment = $stmt->fetch();
+        if (!$enrollment) return;
+
+        // Update student identity
         $stmt = $pdo->prepare(
-            'UPDATE beneficiaries
-             SET lrn=?, first_name=?, last_name=?, birthdate=?, sex=?,
-                 grade_level=?, section=?, school_id=?, status=?
+            'UPDATE students SET lrn=?, first_name=?, last_name=?, birthdate=?, sex=?
              WHERE id=?'
         );
         $stmt->execute([
             $data['lrn'], $data['first_name'], $data['last_name'],
-            $data['birthdate'], $data['sex'], $data['grade_level'],
-            $data['section'], $data['school_id'], $data['status'],
-            $id,
+            $data['birthdate'], $data['sex'], $enrollment['student_id']
+        ]);
+
+        // Update enrollment placement
+        $stmt = $pdo->prepare(
+            'UPDATE enrollments SET school_id=?, grade_level=?, section=?, status=?
+             WHERE id=?'
+        );
+        $stmt->execute([
+            $data['school_id'], $data['grade_level'], $data['section'],
+            $data['status'], $id
         ]);
     }
 
     public static function delete(int $id): void {
-        $pdo  = getPDO();
-        $stmt = $pdo->prepare('DELETE FROM beneficiaries WHERE id = ?');
-        $stmt->execute([$id]);
+        // Delete enrollment; student identity stays for potential re-enrollment
+        getPDO()->prepare('DELETE FROM enrollments WHERE id = ?')->execute([$id]);
     }
 
     // Return beneficiaries absent 3+ consecutive sessions (any school)
@@ -169,5 +201,24 @@ class Beneficiary {
         $pdo  = getPDO();
         $stmt = $pdo->query('SELECT DISTINCT grade_level FROM beneficiaries ORDER BY grade_level');
         return $stmt->fetchAll(PDO::FETCH_COLUMN);
+    }
+
+    public static function getListForDropdown(?int $schoolId, ?string $grade, ?string $section): array {
+        $pdo = getPDO();
+        $where = ["status='Active'"];
+        $params = [];
+        if ($schoolId) {
+            $where[] = "school_id = ?";
+            $params[] = $schoolId;
+        }
+        if ($grade && $section) {
+            $where[] = "grade_level = ? AND section = ?";
+            $params[] = $grade;
+            $params[] = $section;
+        }
+        $sql = "SELECT id, CONCAT(first_name,' ',last_name) AS full_name, lrn FROM beneficiaries WHERE " . implode(' AND ', $where) . " ORDER BY last_name";
+        $stmt = $pdo->prepare($sql);
+        $stmt->execute($params);
+        return $stmt->fetchAll();
     }
 }
