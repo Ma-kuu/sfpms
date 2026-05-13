@@ -1,40 +1,5 @@
 <?php
-// pages/feeding_log.php
-if (session_status() === PHP_SESSION_NONE) session_start();
-require_once __DIR__ . '/../classes/Auth.php';
-require_once __DIR__ . '/../classes/FeedingLog.php';
-require_once __DIR__ . '/../config/db.php';
-require_once __DIR__ . '/../includes/helpers.php';
-require_once __DIR__ . '/../includes/pagination.php';
-Auth::check();
-
-$user     = Auth::user();
-$isSA     = Auth::isSuperAdmin();
-$schoolId = $isSA ? null : (int)$user['school_id'];
-$pdo      = getPDO();
-$schools  = $pdo->query('SELECT id, name FROM schools ORDER BY name')->fetchAll();
-
-// Attendance view
-$attendanceView = null;
-$attendance     = [];
-if (isset($_GET['session_id'])) {
-    $sid            = (int)$_GET['session_id'];
-    $attendanceView = FeedingLog::getSessionById($sid);
-    
-    $teacherGrade   = Auth::isTeacher() ? $user['grade_level'] : null;
-    $teacherSection = Auth::isTeacher() ? $user['section'] : null;
-    $attendance     = FeedingLog::getAttendanceForSession($sid, $teacherGrade, $teacherSection);
-}
-
-$totalCount = FeedingLog::countSessions($schoolId);
-$pag = paginate($totalCount, 15);
-
-$sortBy  = in_array($_GET['sort'] ?? '', ['session_date', 'school_name', 'meal_type', 'present_count']) ? $_GET['sort'] : 'session_date';
-$sortDir = ($_GET['dir'] ?? 'desc') === 'asc' ? 'asc' : 'desc'; // Default DESC for dates
-
-$sessions  = FeedingLog::getSessions($schoolId, $pag['page'], $pag['perPage'], $sortBy, $sortDir);
-
-$pageTitle = 'Feeding Log';
+require_once __DIR__ . '/../controllers/feeding_log.php';
 require_once __DIR__ . '/../includes/header.php';
 ?>
 
@@ -66,6 +31,7 @@ require_once __DIR__ . '/../includes/header.php';
       <input type="hidden" name="module" value="attendance">
       <input type="hidden" name="action" value="save_attendance">
       <input type="hidden" name="session_id" value="<?= $attendanceView['id'] ?>">
+      <?= csrf_field() ?>
       <div style="padding:.75rem 1rem;">
         <div class="row g-2">
           <?php foreach ($attendance as $pupil): ?>

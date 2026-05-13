@@ -24,6 +24,10 @@ class School {
         return (int) getPDO()->query('SELECT COUNT(*) FROM schools')->fetchColumn();
     }
 
+    public static function getList(): array {
+        return getPDO()->query('SELECT id, name FROM schools ORDER BY name')->fetchAll();
+    }
+
     public static function getById(int $id): array|false {
         $stmt = getPDO()->prepare('SELECT * FROM schools WHERE id = ?');
         $stmt->execute([$id]);

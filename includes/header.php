@@ -3,6 +3,7 @@
 if (session_status() === PHP_SESSION_NONE) session_start();
 
 require_once __DIR__ . '/../classes/Auth.php';
+require_once __DIR__ . '/../includes/helpers.php';
 Auth::check();
 
 $user    = Auth::user();
@@ -131,7 +132,7 @@ $totalNotifs = count($notifs);
         fetch('router.php', {
             method: 'POST',
             headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-            body: new URLSearchParams({ module: 'notification', action: action, id: id })
+            body: new URLSearchParams({ module: 'notification', action: action, id: id, csrf_token: '<?= csrf_token() ?>' })
         }).then(() => {
             const el = document.getElementById('notif-' + id);
             if (el) el.remove();

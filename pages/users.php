@@ -1,39 +1,5 @@
 <?php
-// pages/users.php — Super Admin only
-if (session_status() === PHP_SESSION_NONE) session_start();
-require_once __DIR__ . '/../classes/Auth.php';
-require_once __DIR__ . '/../classes/User.php';
-require_once __DIR__ . '/../classes/School.php';
-require_once __DIR__ . '/../includes/pagination.php';
-require_once __DIR__ . '/../includes/helpers.php';
-
-Auth::checkRole(['super_admin']);
-
-// Handle messages from router
-$msg = $_GET['msg'] ?? '';
-$err = $_GET['err'] ?? '';
-
-// Pagination & Sort
-$search     = trim($_GET['search'] ?? '');
-$sortBy     = in_array($_GET['sort'] ?? '', ['name', 'email', 'role', 'school_name']) ? $_GET['sort'] : 'name';
-$sortDir    = ($_GET['dir'] ?? 'asc') === 'desc' ? 'desc' : 'asc';
-$totalCount = User::countAll();
-$pag        = paginate($totalCount, 20);
-$users      = User::getAll($pag['page'], $pag['perPage'], $sortBy, $sortDir);
-
-// Simple search filter
-if ($search) {
-    $users = array_filter($users, fn($u) =>
-        stripos($u['name'], $search) !== false ||
-        stripos($u['email'], $search) !== false ||
-        stripos($u['school_name'] ?? '', $search) !== false
-    );
-}
-
-// Fetch schools for the form
-$schoolsList = School::getAll(1, 1000, 'name', 'asc');
-
-$pageTitle = 'Users Management';
+require_once __DIR__ . '/../controllers/users.php';
 require_once __DIR__ . '/../includes/header.php';
 ?>
 
@@ -173,6 +139,7 @@ require_once __DIR__ . '/../includes/header.php';
       <form method="post" action="router.php">
         <input type="hidden" name="module" value="user">
         <input type="hidden" name="action" value="add">
+        <?= csrf_field() ?>
         <div class="modal-header">
           <h5 class="modal-title"><i class="bi bi-person-plus-fill me-1"></i> Add User</h5>
           <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
@@ -240,6 +207,7 @@ require_once __DIR__ . '/../includes/header.php';
         <input type="hidden" name="module" value="user">
         <input type="hidden" name="action" value="edit">
         <input type="hidden" name="id" id="edit-id">
+        <?= csrf_field() ?>
         <div class="modal-header">
           <h5 class="modal-title"><i class="bi bi-pencil me-1"></i> Edit User</h5>
           <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
@@ -307,6 +275,7 @@ require_once __DIR__ . '/../includes/header.php';
         <input type="hidden" name="module" value="user">
         <input type="hidden" name="action" value="delete">
         <input type="hidden" name="id" id="del-id">
+        <?= csrf_field() ?>
         <div class="modal-header" style="background:#DC3545;">
           <h5 class="modal-title">Delete User</h5>
           <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>

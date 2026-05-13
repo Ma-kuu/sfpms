@@ -49,7 +49,7 @@ class User {
         $stmt->execute([
             $d['name'], 
             $d['email'], 
-            $d['password'], // Storing raw password as requested initially in this project
+            password_hash($d['password'], PASSWORD_DEFAULT),
             $d['role'], 
             $d['school_id'] ?: null, 
             $d['grade_level'] ?: null, 
@@ -67,7 +67,7 @@ class User {
                 WHERE id = ?
             ');
             $stmt->execute([
-                $d['name'], $d['email'], $d['password'], $d['role'], 
+                $d['name'], $d['email'], password_hash($d['password'], PASSWORD_DEFAULT), $d['role'], 
                 $d['school_id'] ?: null, $d['grade_level'] ?: null, $d['section'] ?: null, $id
             ]);
         } else {

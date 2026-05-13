@@ -15,7 +15,7 @@ class Auth {
         $stmt->execute([$email]);
         $user = $stmt->fetch();
 
-        if ($user && $password === $user['password']) {
+        if ($user && password_verify($password, $user['password'])) {
             if ($user['school_id'] && $user['school_status'] === 'Inactive') {
                 return false; // Or throw an exception, but returning false works for the current UI
             }

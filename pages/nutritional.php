@@ -1,53 +1,5 @@
 <?php
-// pages/nutritional.php
-if (session_status() === PHP_SESSION_NONE) session_start();
-require_once __DIR__ . '/../classes/Auth.php';
-require_once __DIR__ . '/../classes/NutritionalRecord.php';
-require_once __DIR__ . '/../config/db.php';
-require_once __DIR__ . '/../includes/helpers.php';
-require_once __DIR__ . '/../includes/pagination.php';
-Auth::check();
-
-$user     = Auth::user();
-$isSA     = Auth::isSuperAdmin();
-$schoolId = $isSA ? null : (int)$user['school_id'];
-$pdo      = getPDO();
-
-// Schools and beneficiaries for dropdowns
-$schools      = $pdo->query('SELECT id, name FROM schools ORDER BY name')->fetchAll();
-$schFilter    = $isSA ? (($_GET['school_id'] ?? '') ?: null) : $schoolId;
-$search       = trim($_GET['search'] ?? '');
-
-$isTeacher = Auth::isTeacher();
-$teacherGrade   = $isTeacher ? $user['grade_level'] : null;
-$teacherSection = $isTeacher ? $user['section'] : null;
-
-// All active beneficiaries for add/edit dropdowns
-$benWhere = "status='Active'";
-$benParams = [];
-if ($schoolId) {
-    $benWhere .= " AND school_id = ?";
-    $benParams[] = $schoolId;
-}
-if ($isTeacher) {
-    $benWhere .= " AND grade_level = ? AND section = ?";
-    $benParams[] = $teacherGrade;
-    $benParams[] = $teacherSection;
-}
-$benQuery = $pdo->prepare("SELECT id, CONCAT(first_name,' ',last_name) AS full_name, lrn FROM beneficiaries WHERE $benWhere ORDER BY last_name");
-$benQuery->execute($benParams);
-$beneficiaries = $benQuery->fetchAll();
-
-$classFilter = $_GET['classification'] ?? '';
-
-$totalCount = NutritionalRecord::countAll($schFilter, $search ?: null, $teacherGrade, $teacherSection, $classFilter);
-$pag = paginate($totalCount, 20);
-
-$sortBy  = in_array($_GET['sort'] ?? '', ['full_name', 'record_date', 'weight_kg', 'height_cm', 'bmi']) ? $_GET['sort'] : 'full_name';
-$sortDir = ($_GET['dir'] ?? 'asc') === 'desc' ? 'desc' : 'asc';
-
-$records = NutritionalRecord::getAll($schFilter, $search ?: null, $teacherGrade, $teacherSection, $classFilter, $pag['page'], $pag['perPage'], $sortBy, $sortDir);
-$pageTitle = 'Nutritional Records';
+require_once __DIR__ . '/../controllers/nutritional.php';
 require_once __DIR__ . '/../includes/header.php';
 ?>
 

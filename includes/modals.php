@@ -10,6 +10,7 @@
       <form method="post" action="router.php">
         <input type="hidden" name="module" id="addModule" value="">
         <input type="hidden" name="action" value="add">
+        <?= csrf_field() ?>
         <div class="modal-body" id="addBody"></div>
         <div class="modal-footer">
           <button type="button" class="btn-outline-custom" data-bs-dismiss="modal">Cancel</button>
@@ -34,6 +35,7 @@
         <input type="hidden" name="module" id="editModule" value="">
         <input type="hidden" name="action" value="edit">
         <input type="hidden" name="id" id="editId">
+        <?= csrf_field() ?>
         <div class="modal-body" id="editBody"></div>
         <div class="modal-footer">
           <button type="button" class="btn-outline-custom" data-bs-dismiss="modal">Cancel</button>
@@ -60,6 +62,7 @@
         <input type="hidden" name="module" id="deleteModule" value="">
         <input type="hidden" name="action" value="delete">
         <input type="hidden" name="id" id="deleteId">
+        <?= csrf_field() ?>
         <div class="modal-body" style="padding:1.25rem;">
           <p style="margin:0;font-size:.9rem;">
             Are you sure you want to delete <strong id="deleteName"></strong>?

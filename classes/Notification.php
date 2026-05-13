@@ -30,19 +30,27 @@ class Notification {
         }
 
         // 2. Needs recheck
-        $recheckWhere = $schoolId ? 'AND b.school_id = ' . (int)$schoolId : '';
-        if ($isTeacher) {
-            $recheckWhere .= " AND b.grade_level = " . $pdo->quote($gradeLevel)
-                          .  " AND b.section = " . $pdo->quote($section);
+        $recheckWhere = '';
+        $recheckParams = [];
+        if ($schoolId) {
+            $recheckWhere .= ' AND b.school_id = ?';
+            $recheckParams[] = $schoolId;
         }
-        $needsRecheck = $pdo->query("
+        if ($isTeacher) {
+            $recheckWhere .= ' AND b.grade_level = ? AND b.section = ?';
+            $recheckParams[] = $gradeLevel;
+            $recheckParams[] = $section;
+        }
+        $stmt = $pdo->prepare("
             SELECT COUNT(*) FROM beneficiaries b
             WHERE b.status = 'Active' {$recheckWhere}
             AND b.id NOT IN (
                 SELECT beneficiary_id FROM nutritional_records
                 WHERE record_date >= DATE_SUB(CURDATE(), INTERVAL 3 DAY)
             )
-        ")->fetchColumn();
+        ");
+        $stmt->execute($recheckParams);
+        $needsRecheck = (int) $stmt->fetchColumn();
         
         if ($needsRecheck > 0) {
             $msg = $needsRecheck . ' student' . ($needsRecheck > 1 ? 's need' : ' needs') . ' nutritional re-check.';
